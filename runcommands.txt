@@ -1,0 +1,5 @@
+daphne -p 8000 Django.asgi:application
+
+docker run -p 8000:8000 -v /root/database:/usr/app/database --restart always webstreams:latest
+
+Компиляция статиков npx webpack

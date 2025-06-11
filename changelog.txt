@@ -1,0 +1,74 @@
+15.01.2024
+-redis заменён на InMemoryChannelLayer в CHANNELS_LAYERS
+-postgresql заменён на встроенный sqlite
+-статики на whitenoise, вместо nginx
+
+16.01.2024
+-Зарегистрирован домен и SSL сертификат https://starkinc.shop/
+
+18.01.2024
+-Сборка образа docker nginx с обратным прокси
+-Добавлена конфигурация nginx.conf под SSL и домен https://starkinc.shop/ в docker nginx
+
+## Version 2.1.1 - Critical Database & UX Fixes (2025-05-30)
+
+### 🔧 Critical Bug Fixes:
+- **Fixed "database is locked" errors**: Enhanced SQLite configuration with WAL mode and timeouts
+- **Eliminated "yellow error pages"**: Added graceful error handling with user-friendly messages
+- **Fixed infinite loading**: Better connection status feedback and timeout handling
+
+### ✨ Enhanced User Experience:
+- **Real-time connection diagnostics**: Shows specific account issues (proxy/token problems)
+- **Detailed error messages**: Clear indication of which account has problems and why
+- **Better error page**: Custom template instead of Django debug page for database issues
+- **Progress indicators**: Real-time feedback during account connection process
+
+### 🚀 Improvements:
+- **Database Performance**: SQLite optimizations (WAL mode, connection pooling, retry logic)
+- **Connection Reliability**: Enhanced proxy rotation with detailed logging
+- **Error Diagnostics**: Specific error messages for proxy/token validation failures
+- **User Feedback**: Emoji-based status indicators for better visual feedback
+
+### 📋 Technical Changes:
+- Enhanced SQLite configuration with WAL journal mode and optimizations
+- Improved TransactionMiddleware with database lock retry logic
+- Added detailed connection diagnostics in ChatManager
+- Enhanced error callbacks with specific account information
+- Custom error page template for database unavailability
+
+---
+
+## Version 2.1.0 - Enhanced Error Handling & Proxy Rotation (2025-05-30)
+
+### 🔧 Bug Fixes:
+- Fixed "yellow error pages" in Django admin when adding duplicate entries
+- Enhanced proxy rotation logic to prevent connection failures
+- Improved error handling throughout the application
+
+### ✨ New Features:
+- **Twitch Token Validation**: Real-time validation using Twitch API
+- **Intelligent Proxy Rotation**: Automatic switching with retry logic (5 attempts, 2s delay)
+- **Enhanced Logging**: Comprehensive logging for debugging and monitoring
+- **Better Admin Error Handling**: Custom forms with graceful error messages
+
+### 🚀 Improvements:
+- ChatManager: Enhanced connection stability and error recovery
+- Admin Interface: Better user experience with proper error messages
+- Connection Logic: Automatic reconnection for failed IRC connections
+- Code Quality: Added comprehensive error handling and logging
+
+### 📋 Technical Changes:
+- Added `requests` dependency for Twitch API integration
+- Enhanced `ServiceApp.Validators.twitch_token` with API validation
+- Improved `TwitchApp.chat_manager` with better proxy rotation
+- Updated admin forms for TwitchApp and ProxyApp
+- Added logging configuration in Django settings
+
+### ⚙️ Configuration:
+- Added `TWITCH_CLIENT_ID` setting for token validation
+- Enhanced logging configuration for better debugging
+
+---
+
+## Previous Versions:
+v2.0.0 - Initial release with basic Twitch chat automation

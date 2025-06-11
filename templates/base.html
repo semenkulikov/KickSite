@@ -1,0 +1,43 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>
+  {% block title %}
+    WebStreams
+  {% endblock %}
+  </title>
+
+  <script src="{% static 'Django/js/jquery-3.7.1.min.js' %}"></script>
+  <script src="{% static 'Django/js/ajax_libs_popper.js_1.12.3.min.js' %}"></script>
+  <script src="{% static 'Django/js/bootstrap.bundle.min.js' %}"></script>
+
+  <script src="{% static 'Django/js/Django.bundle.js' %}" defer></script>
+
+  <link rel="stylesheet" href="{% static 'Django/css/main.css' %}">
+
+  <script>
+    $(document).ready(function() {
+        $(".dropdown-toggle").dropdown();
+    });
+  </script>
+
+  <!-- INCLUDE STATIC  -->
+  {% block static %} {% endblock %}
+  <!-- ------------- -->
+</head>
+<body>
+  {% include "header.html" %}
+
+  <div class="container container-content mb-4">
+    {% block content %}{% endblock %}
+  </div>
+
+  <div class="">
+    {% include "footer.html" %}
+  </div>
+</body>
+</html>

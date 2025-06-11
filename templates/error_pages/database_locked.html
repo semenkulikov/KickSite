@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}Система временно недоступна{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h4><i class="fas fa-exclamation-triangle"></i> Система временно недоступна</h4>
+                </div>
+                <div class="card-body">
+                    <h5>{{ error_message }}</h5>
+                    <p class="text-muted">{{ error_details }}</p>
+                    
+                    <div class="alert alert-info">
+                        <strong>Что произошло?</strong><br>
+                        Система в данный момент обрабатывает большое количество запросов. 
+                        Это временная ситуация, которая обычно решается через несколько секунд.
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button class="btn btn-primary" onclick="window.location.reload()">
+                            <i class="fas fa-redo"></i> Повторить попытку
+                        </button>
+                        <a href="/" class="btn btn-secondary ml-2">
+                            <i class="fas fa-home"></i> На главную
+                        </a>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            Если проблема повторяется, попробуйте через 10-15 секунд.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-retry after 5 seconds
+setTimeout(function() {
+    if (confirm('Попробовать снова автоматически?')) {
+        window.location.reload();
+    }
+}, 5000);
+</script>
+{% endblock %} 

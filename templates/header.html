@@ -1,0 +1,35 @@
+<nav class="navbar navbar-expand-lg header mb-4" aria-label="Main navigation">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="{% url 'index' %}">WEB STREAMS</a>
+    <div class="navbar-collapse offcanvas-collapse" id="navbarsExampleDefault">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li>
+          <a href="{% url 'index' %}" class="menu__link nav-link px-2 link-secondary {% if request.resolver_match.url_name == "index" %}menu__link_is-active{% endif %}">
+            Home
+          </a>
+        </li>
+        <li>
+
+        {% if perms.ServiceApp.twitch_chatter %}
+          <li class="nav-item dropdown">
+            <a class="menu__link nav-link link-secondary dropdown-toggle {% if request.resolver_match.url_name == "twitch_index" or request.resolver_match.url_name == "twitch_chat" %}menu__link_is-active{% endif %}" href="" data-bs-toggle="dropdown" aria-expanded="false">Twitch</a>
+            <ul class="dropdown-menu bg-dark">
+              <li><a class="dropdown-item {% if request.resolver_match.url_name == "twitch_index" %}menu__link_is-active{% endif %}" href="{% url 'TwitchApp:twitch_index' %}">Stat</a></li>
+              <li><a class="dropdown-item {% if request.resolver_match.url_name == "twitch_chat" %}menu__link_is-active{% endif %}" href="{% url 'TwitchApp:twitch_chat' %}">Chat</a></li>
+            </ul>
+          </li>
+        {% endif %}
+      </ul>
+      <ul class="d-flex navbar-nav mb-2 mb-lg-0">
+        {% if user.is_authenticated %}
+          {% if user.is_staff %}
+            <li><a href="/panel" class="menu__link nav-link link-success me-2">Admin panel</a></li>
+          {% endif %}
+          <li><a href="{% url 'logout' %}" class="menu__link link-danger nav-link me-2">Logout</a></li>
+        {% else %}
+          <li><a href="{% url 'login' %}" class="menu__link link-success nav-link me-2">Login</a></li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</nav>

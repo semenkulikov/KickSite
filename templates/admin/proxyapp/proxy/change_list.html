@@ -1,0 +1,26 @@
+{% extends 'admin/change_list.html' %}
+{% block object-tools %}
+  {{ block.super }}
+  
+  <!-- Форма импорта -->
+  <form action="import/" method="POST">
+    {% csrf_token %}
+    <label for="multiImport">Multiline input field:</label>
+    <div class="">
+      <textarea name="multiImport" id="multiImport" style="min-width: 100%; min-height: 5vh; margin: 5px 0;"></textarea>
+    </div>
+    <div class="">
+      <input type="submit" style="margin-bottom: 5px" value="Импорт" />
+    </div>
+  </form>
+
+  <!-- Кнопка назначения прокси -->
+  <form action="assign-proxies/" method="POST" style="margin-top: 10px;">
+    {% csrf_token %}
+    <div class="">
+      <input type="submit" style="background-color: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;" 
+             value="🔗 Назначить прокси аккаунтам" 
+             onclick="return confirm('Назначить свободные прокси аккаунтам без прокси?')" />
+    </div>
+  </form>
+{% endblock %} 

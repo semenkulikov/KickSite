@@ -1,0 +1,309 @@
+Check out our new search tool Ossity It's a web research hub that offers comparitive searches across 25 search engines. And it's free to use!
+
+This page has been Textised!
+
+The original page address was https://wiki.fromregion.xyz/books/webstreams/page/setup
+For sharing use ...
+Here are some options:
+
+Back to original page (in this window | in a new window)
+Print this page
+Textise Home Page
+Textise Options Page (choose font size, font colour, etc.)
+Contact Subjunctive Software
+Are you a webmaster? Find out how to easily add Textise to your web site.
+
+Skip to main content
+[Image: Logo]
+
+WIKI Fromregion
+Search Shelves Books Log in
+Page Navigation
+Установка под AlmaLinux-9
+1. Установить СУБД Postgresql
+1.1 Подготовка сервера
+1.2 Создание базы и пользователя в postgresql
+2. Установка и настройка Redis
+3. Установка проекта
+4. Конфигурирование сервиса проекта
+5. Настройка веб-сервера
+Перезапуск проекта
+Book Navigation
+WebStreams
+Setup
+Books
+WebStreams
+Setup
+Setup Установка под AlmaLinux-9 1. Установить СУБД Postgresql 1.1 Подготовка сервера
+Подготовка пакетов
+sudo dnf update -y && sudo dnf install curl vim wget -y
+Установка и настройка RPM репозитория
+sudo dnf install -y https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+Отключить встроенный модуль PostgreSQL
+sudo dnf -qy module disable postgresql
+Установить PostgreSQL
+sudo dnf install -y postgresql15-server
+Включить сервис
+sudo systemctl enable --now postgresql-15
+Проверить работоспособность
+systemctl status postgresql-15
+1.2 Создание базы и пользователя в postgresql
+Подключиться к posgresql
+sudo su - postgres && psql
+Создать базу данных для проекта
+CREATE DATABASE <database-name>;
+Создать пользователя
+CREATE USER <user> WITH PASSWORD '<PASSWORD>';
+Выдать пользователю полный доступ к БД
+GRANT ALL PRIVILEGES ON DATABASE <database-name> to <user>;
+Скорректировать доступ в pg_hba.conf
+nano /var/lib/pgsql/15/data/pg_hba.conf
+Под этой строкой:
+
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+Добавить эту изменив на свои значения:
+
+<ip-address> - локальный адрес сервера на котором стоит проект
+
+host    <database-name>	<user>         <ip-address>/<mask>           scram-sha-256
+Для вступления в силу изменений нужно перезапустить сервис
+systemctl restart postgresql
+2. Установка и настройка Redis
+Установка
+sudo dnf install redis -y
+Настройка
+Изменить настройки в конфигурационном файле
+
+sudo nano /etc/redis/redis.conf
+2.1. Изменить адрес прослушивания
+
+bind 0.0.0.0
+2.2. Установить пароль для подключения к Redis
+
+requirepass <your-password>
+Включение
+sudo systemctl enable --now redis
+3. Установка проекта
+Для запуска проекта необходим Python 3.12.0 или выше
+
+Сконфигурировать виртуальное окружение: 1.1. Создать виртуальное окружение в директории проекта:
+python3 -m venv /.venv
+1.2. Активировать виртуальное окружение:
+
+source ./venv/bin/activate
+1.3. Установить зависимости в виртуальное окружение:
+
+pip install -r ./requirements.txt
+Изменить настройки проекта (файл ./Django/settings.py):
+2.1. Изменить массив ALLOWED_HOSTS:
+
+Пример:
+ALLOWED_HOSTS = ['127.0.0.1', '0.0.0.0', 'example.com']
+2.2. Изменить словарь DATABASES:
+
+Значения для подключения к Базе данных в postgresql
+
+Пример:
+DATABASES = {
+    'default': {
+        'ENGINE': "django.db.backends.postgresql",
+        'NAME': "<database-name>",
+        'USER': "<user>",
+        'PASSWORD': "<password>",
+        'HOST': "127.0.0.1",
+        'PORT': "5432"
+    }
+}
+2.3. Изменить массив CSRF_TRUSTED_ORIGINS:
+
+Пример:
+CSRF_TRUSTED_ORIGINS = [
+    "http://127.0.0.1/",
+    "http://127.0.0.1:8000/login",
+    "https://example.com",
+    "https://example.com/login"
+]
+2.4. Изменить словарь CHANNELS_LAYERS
+
+Значения для подключения к Базе данных в Redis
+
+CHANNELS_LAYERS = {
+  'default': {
+    'BACKEND': 'channels_redis.core.RedisChannelLayer',
+    'CONFIG': {
+        "hosts": [
+          'redis://<PASSWORD>@<IP>:6379'
+        ],
+    },
+
+    # 'BACKEND': 'channels.layers.InMemoryChannelLayer'
+  }
+}
+Инициализировать миграции для БД:
+3.1. Удалить существующие миграции:
+
+python3 manage.py delete_migrations
+3.2. Создать новые миграции:
+
+python3 manage.py makemigrations
+3.3. Применить миграции к БД:
+
+python3 manage.py migrate
+Собрать статику:
+python3 manage.py collectstatic --noinput --clear
+4. Конфигурирование сервиса проекта
+Создать файл сервиса nano /etc/systemd/system/web-streams.service:
+nano /etc/systemd/system/web-streams.service
+Создать папку ssl в корне проекта и скопировать в нее cert.pem и privkey.pem от SSL сертификата.
+
+Заполнить файл сервиса:
+[Unit]
+Description=Start WebChat
+After=network.target
+
+[Service]
+User=root
+Group=root
+ExecStart=/bin/sh -c 'cd /opt/web-streams/ && source .venv/bin/activate && daphne -e ssl:8001:privateKey=ssl/privkey.pem:certKey=ssl/cert.pem Django.asgi:application -b 0.0.0.0'
+Restart=always
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target
+Изменить путь /opt/web-streams/ на абсолютный путь к корню проекта
+
+Перезагрузить демон systemd:
+systemctl daemon-reload
+Включить и запустить демон web-streams:
+sudo systemctl enable --now web-streams
+5. Настройка веб-сервера
+Установите веб-сервер Nginx
+sudo dnf install nginx -y
+Включение сервиса
+sudo systemctl enable nginx
+Изменение файла конфигурации
+Изменить на свои значения строки с "👈👈👈"
+
+nano /etc/nginx/nginx.conf
+Файл:
+
+user nginx;
+worker_processes auto;
+
+error_log /var/log/nginx/error.log;
+pid /run/nginx.pid;
+
+include /usr/share/nginx/modules/*.conf;
+
+events {
+    worker_connections 1024;
+    multi_accept on;
+}
+
+http {
+  client_max_body_size 100M;
+  include       mime.types;
+  default_type  application/octet-stream;
+
+  tcp_nodelay on;
+  tcp_nopush on;
+
+  sendfile on;
+  sendfile_max_chunk 1m;
+  keepalive_requests 100;
+  keepalive_timeout 60;
+  types_hash_max_size 4096;
+
+  open_file_cache max=200000 inactive=20s;
+  open_file_cache_valid 60m;
+  open_file_cache_min_uses 1;
+  open_file_cache_errors on;
+
+  reset_timedout_connection on;
+  client_body_timeout 10;
+  send_timeout 5;
+
+  gzip on;
+  gzip_static on;
+  gzip_comp_level 9;
+  gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript application/javascript text/babel;
+  gzip_proxied any;
+  gzip_buffers 16 8k;
+  gzip_http_version 1.1;
+
+  server {
+    access_log off;
+
+    listen 80;
+    listen [::]:80;
+
+    server_name <EXTERNAL-FQDN>; # 👈👈👈
+    charset utf8;
+    autoindex off;
+
+    set $project_home /opt/web-streams; # 👈👈👈
+
+    location /static/ {
+      root /opt/web-streams; # 👈👈👈 Абсолютный путь к проекту
+      add_header Cache-Control public;
+      expires 1y;
+    }
+
+    location /opt/web-streams/media { # 👈👈👈 Абсолютный путь к проекту/media
+      autoindex on;
+      alias /media;
+      add_header Cache-Control public;
+      expires 1y;
+    }
+
+    location / {
+      proxy_pass http://0.0.0.0:8000; # daphne address
+
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header Host $host;
+
+      proxy_read_timeout 300;
+      proxy_connect_timeout 30;
+
+      proxy_http_version 1.1;
+    }
+
+    location /ws-twitch/ {
+        proxy_pass https://0.0.0.0:8001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    location @<project> {
+      proxy_pass http://0.0.0.0:8000; # daphne address
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Host $server_name;
+    }
+  }
+}
+Перезапустить сервис
+sudo systemctl restart nginx
+Перезапуск проекта
+sudo systemctl restart web-streams && sudo systemctl status web-streams
+Details
+Revision #13
+Created 3 days ago by evgeniymalyh
+Updated 2 days ago by evgeniymalyh
+Book Permissions Active
+Page Permissions Active
+Actions
+Revisions
+Export
+Contained Web File.html
+PDF File.pdf
+Plain Text File.txt
+Markdown File.md
+Back to top
+
+Textise: Back to top
+
+This text-only page was created by Textise (www.textise.net) © Subjunctive Software
+To find out more about our product, visit textise.wordpress.com.
