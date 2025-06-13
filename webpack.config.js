@@ -19,6 +19,14 @@ module.exports = {
       import: "./assets/TwitchApp/js/stats/stats",
       filename: "TwitchApp/static/TwitchApp/js/[name].bundle.js"
     },
+    KickAppChat: {
+      import: "./assets/KickApp/js/chat/chat",
+      filename: "KickApp/static/KickApp/js/[name].bundle.js"
+    },
+    KickAppStats: {
+      import: "./assets/KickApp/js/stats/stats",
+      filename: "KickApp/static/KickApp/js/[name].bundle.js"
+    },
   },
   output: {
     path: path.join(__dirname, "/"),

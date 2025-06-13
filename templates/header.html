@@ -8,17 +8,15 @@
             Home
           </a>
         </li>
-        <li>
-
-        {% if perms.ServiceApp.twitch_chatter %}
-          <li class="nav-item dropdown">
-            <a class="menu__link nav-link link-secondary dropdown-toggle {% if request.resolver_match.url_name == "twitch_index" or request.resolver_match.url_name == "twitch_chat" %}menu__link_is-active{% endif %}" href="" data-bs-toggle="dropdown" aria-expanded="false">Twitch</a>
-            <ul class="dropdown-menu bg-dark">
-              <li><a class="dropdown-item {% if request.resolver_match.url_name == "twitch_index" %}menu__link_is-active{% endif %}" href="{% url 'TwitchApp:twitch_index' %}">Stat</a></li>
-              <li><a class="dropdown-item {% if request.resolver_match.url_name == "twitch_chat" %}menu__link_is-active{% endif %}" href="{% url 'TwitchApp:twitch_chat' %}">Chat</a></li>
-            </ul>
-          </li>
-        {% endif %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name|slice:0:4 == 'kick' %}menu__link_is-active{% endif %}" href="#" id="kickDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            Kick
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="kickDropdown">
+            <li><a class="dropdown-item {% if request.resolver_match.url_name == 'kick_chat' %}active{% endif %}" href="{% url 'kick_chat' %}">Chat</a></li>
+            <li><a class="dropdown-item {% if request.resolver_match.url_name == 'kick_index' %}active{% endif %}" href="{% url 'kick_index' %}">Stat</a></li>
+          </ul>
+        </li>
       </ul>
       <ul class="d-flex navbar-nav mb-2 mb-lg-0">
         {% if user.is_authenticated %}
