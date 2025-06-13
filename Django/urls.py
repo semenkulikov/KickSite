@@ -27,7 +27,8 @@ from Django import views
 urlpatterns = [re_path(r"^login", views.login_view, name='login'),
                re_path(r'^panel/', admin.site.urls),
                re_path(r'^logout', views.logout_view, name='logout'),
-               re_path(r"^twitch/", include('TwitchApp.urls')),
+               # re_path(r"^twitch/", include('TwitchApp.urls')),
+               re_path(r"^kick/", include('KickApp.urls')),
                re_path(r"^$", views.index_view, name='index'),
                ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 

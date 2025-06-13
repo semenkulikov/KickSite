@@ -46,8 +46,9 @@ INSTALLED_APPS = [
     # User's Apps
     'ServiceApp',
     'ProxyApp',
-    'TwitchApp',
-    'StatsApp'
+#    'TwitchApp',
+    'StatsApp',
+    'KickApp',
 ]
 
 MIDDLEWARE = [
@@ -222,15 +223,7 @@ LOGGING = {
         },
     },
     'loggers': {
-        'ServiceApp.Validators.twitch_token': {
-            'handlers': ['file', 'console'] if DEBUG else ['file'],
-            'level': 'INFO',
-            'propagate': True,
-        },
-        'TwitchApp.chat_manager': {
-            'handlers': ['file', 'console'] if DEBUG else ['file'],
-            'level': 'INFO',
-            'propagate': True,
-        },
+        # 'TwitchApp.chat_manager': {},
+        # 'ServiceApp.Validators.twitch_token': {},
     },
 }
