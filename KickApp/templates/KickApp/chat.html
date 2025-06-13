@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+	Twitch Chat - {{ block.super }}
+{% endblock %}
+
+{% block static %}
+
+  <link rel="stylesheet" href="{% static 'TwitchApp/css/chat.css' %}">
+
+  <script src="{% static 'TwitchApp/js/TwitchAppChat.bundle.js' %}" defer></script>
+{% endblock %}
+
+{% block content %}
+
+<div class="row text-center">
+  <div class="col">
+    <h1>Twitch Chat: <b><a id="selectedChannel" class="channel_is-not-selected" data-channel-status="false"></a></b> | Work time: <span id="workTimer">00:00:00</span></h1>
+  </div>
+</div>
+
+{% include 'TwitchApp/twitch-settings.html' %}
+
+<div class="row mb-2">
+  <div class="col col-sm-3">
+    <textarea id="inputLogs" disabled></textarea>
+  </div>
+  <!--<div class="col stream-embed-container">-->
+    <!--<iframe id="stream-embed" src="" frameborder="0" allowfullscreen="true" scrolling="no" height="100%" width="100%"></iframe>-->
+  <div class="col col-sm-3">
+    <iframe id="chat-embed" height="100%" width="100%">
+    </iframe>
+  </div>
+</div>
+
+<div class="form-check form-switch">
+  <input class="form-check-input" type="checkbox" id="sendAutoMessageStatus">
+  <label class="form-check-label" for="sendAutoMessageStatus">Enabling or disabling automatic message sending (<span id="timerAutoMessage">00:01:00</span>)</label>
+</div>
+
+<hr>
+
+<div class="row text-center pt-2 mb-4">
+  <div class="col">
+    <div class="form-group">
+      <label for="inputMessage"><span id="inputMessageAccountLabel"></span></label>
+      <input type="text" class="form-control pt-1" id="inputMessage">
+      <button type="button" id="sendInputMessage" class="btn btn-success input-message-send w-15">
+        Chat
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="row justify-content-center" id="accounts">
+  <div class="loader"></div>
+  <span class="text-center">Uploading accounts....</span>
+</div>
+
+<template id="alertTemplate">
+    <div class="alert alert-dismissible fade show" id="alertBody" style="position: absolute;top: 10px;right: 10px" role="alert">
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+</template>
+
+{% include 'TwitchApp/channel-modal.html' %}
+{% include 'TwitchApp/auto-messages-modal.html' %}
+
+{% endblock %}
