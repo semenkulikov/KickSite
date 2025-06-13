@@ -12,7 +12,7 @@ class User(AbstractUser, PermissionsMixin):
     the corresponding functionality becomes available
     """
 
-    twitch_account = models.ManyToManyField('TwitchApp.TwitchAccount', related_name="user", blank=True)
+    # twitch_account = models.ManyToManyField('TwitchApp.TwitchAccount', related_name="user", blank=True)
 
     # objects = UserManager()
     USERNAME_FIELD = 'username'

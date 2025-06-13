@@ -23,7 +23,7 @@ class UserAdmin(UserAdmin):
         ('Status', {'fields': ('is_active',)}),
     )
 
-    filter_horizontal = ('groups', 'twitch_account')
+    filter_horizontal = ('groups',)
 
 
 admin.site.register(User, UserAdmin)
