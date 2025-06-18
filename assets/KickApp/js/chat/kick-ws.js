@@ -16,6 +16,8 @@ const socket = new WebSocket(endpoint);
 let awaitAccountsPingStatus;
 let workStatus = false;
 
+window.socket = socket;
+
 function connect() {
   socket.onopen = function open() {
     console.log('WebSockets connection created.');
@@ -36,7 +38,7 @@ function connect() {
     // On getting the message from the server
     // Do the appropriate steps on each event.
     let data = JSON.parse(e.data);
-    data = data["payload"];
+    if (data.payload) data = data.payload;
     let message = data['message'];
     let event = data["event"];
 

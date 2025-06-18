@@ -10,8 +10,9 @@ $('#changeChannel').on('click', function() {
 function changeViewChannel(status, channel = undefined) {
     const elementSelectedChannel = document.getElementById("selectedChannel");
     if (status) {
+        channel = (channel || "").trim();
         $("#selectedChannel").removeClass();
-        elementSelectedChannel.href = `https://kick.com/${channel}`
+        elementSelectedChannel.href = `https://kick.com/${encodeURIComponent(channel)}`
         elementSelectedChannel.target = "_blank"
         elementSelectedChannel.innerHTML = `<span>${channel}</span>`;
         elementSelectedChannel.dataset.status = "selected";
@@ -19,7 +20,7 @@ function changeViewChannel(status, channel = undefined) {
 
         const streamEmbedElem = document.getElementById("chat-embed");
         if (streamEmbedElem) {
-            document.getElementById("chat-embed").src = `https://kick.com/embed/${channel}/chat?parent=${window.location.hostname}`;
+            document.getElementById("chat-embed").src = `https://kick.com/embed/${encodeURIComponent(channel)}/chat?parent=${window.location.hostname}`;
         }
 
     } else {
@@ -36,10 +37,15 @@ function changeChannel() {
   let inputChannel = document.getElementById("inputChannel").value
 
   if (inputChannel && inputChannel.trim() !== "") {
+    inputChannel = inputChannel.trim();
+    if (inputChannel.startsWith("@")) {
+      inputChannel = inputChannel.slice(1);
+    }
     if (linkPattern.test(inputChannel)) {
       let splitInputChannel = inputChannel.split('/')
       inputChannel = splitInputChannel[splitInputChannel.length - 1]
     }
+    inputChannel = inputChannel.replace(/^@+/, '');
     addOrUpdateKickChannelDB(inputChannel);
     changeViewChannel(true, inputChannel);
     showAlert("Channel changed successfully", "alert-success")
@@ -61,4 +67,5 @@ function changeChannel() {
   }
 }
 
-export {changeViewChannel}
+export {changeViewChannel, changeChannel}
+window.changeChannel = changeChannel;

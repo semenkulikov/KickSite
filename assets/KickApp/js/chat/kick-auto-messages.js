@@ -133,8 +133,10 @@ function selectAutoSendAccounts(selectedAccounts) {
 }
 
 function changeViewFrequency(frequency) {
-  document.getElementById("autoMessageFrequencyInput").value = frequency
-  document.getElementById("frequency-send").innerText = frequency
+  const freqInput = document.getElementById("autoMessageFrequencyInput");
+  const freqSend = document.getElementById("frequency-send");
+  if (freqInput) freqInput.value = frequency;
+  if (freqSend) freqSend.innerText = frequency;
 }
 
 function changeViewAutoMessages(messages) {

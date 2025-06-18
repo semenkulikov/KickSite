@@ -9,12 +9,12 @@
           </a>
         </li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name|slice:0:4 == 'kick' %}menu__link_is-active{% endif %}" href="#" id="kickDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name|slice:"0:4" == 'kick' %}menu__link_is-active text-light{% endif %}" href="#" id="kickDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" style="background: #18181b;">
             Kick
           </a>
-          <ul class="dropdown-menu" aria-labelledby="kickDropdown">
-            <li><a class="dropdown-item {% if request.resolver_match.url_name == 'kick_chat' %}active{% endif %}" href="{% url 'kick_chat' %}">Chat</a></li>
-            <li><a class="dropdown-item {% if request.resolver_match.url_name == 'kick_index' %}active{% endif %}" href="{% url 'kick_index' %}">Stat</a></li>
+          <ul class="dropdown-menu bg-dark border-0" aria-labelledby="kickDropdown" style="background: #18181b;">
+            <li><a class="dropdown-item text-light {% if request.resolver_match.url_name == 'kick_chat' %}active{% endif %}" style="background: #18181b;" href="{% url 'kick_chat' %}">Chat</a></li>
+            <li><a class="dropdown-item text-light {% if request.resolver_match.url_name == 'kick_index' %}active{% endif %}" style="background: #18181b;" href="{% url 'kick_index' %}">Stat</a></li>
           </ul>
         </li>
       </ul>
@@ -31,3 +31,11 @@
     </div>
   </div>
 </nav>
+
+<style>
+  .dropdown-menu.bg-dark .dropdown-item.text-light:hover,
+  .dropdown-menu.bg-dark .dropdown-item.text-light.active {
+    background: #23232a !important;
+    color: #fff !important;
+  }
+</style>

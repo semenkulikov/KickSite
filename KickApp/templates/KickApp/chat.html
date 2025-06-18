@@ -2,41 +2,38 @@
 {% load static %}
 
 {% block title %}
-	Twitch Chat - {{ block.super }}
+	Kick Chat - {{ block.super }}
 {% endblock %}
 
 {% block static %}
-
-  <link rel="stylesheet" href="{% static 'TwitchApp/css/chat.css' %}">
-
-  <script src="{% static 'TwitchApp/js/TwitchAppChat.bundle.js' %}" defer></script>
+  <link rel="stylesheet" href="{% static 'KickApp/css/chat.css' %}">
+  <script src="{% static 'KickApp/js/KickAppChat.bundle.js' %}" defer></script>
 {% endblock %}
 
 {% block content %}
 
 <div class="row text-center">
   <div class="col">
-    <h1>Twitch Chat: <b><a id="selectedChannel" class="channel_is-not-selected" data-channel-status="false"></a></b> | Work time: <span id="workTimer">00:00:00</span></h1>
+    <h1>Kick Chat: <b><a id="selectedChannel" class="channel_is-not-selected" data-channel-status="false"></a></b> | Work time: <span id="workTimer">00:00:00</span></h1>
   </div>
 </div>
 
-{% include 'TwitchApp/twitch-settings.html' %}
+{% include 'KickApp/auto-messages-modal.html' %}
+{% include 'KickApp/channel-modal.html' %}
 
 <div class="row mb-2">
   <div class="col col-sm-3">
     <textarea id="inputLogs" disabled></textarea>
   </div>
-  <!--<div class="col stream-embed-container">-->
-    <!--<iframe id="stream-embed" src="" frameborder="0" allowfullscreen="true" scrolling="no" height="100%" width="100%"></iframe>-->
-  <div class="col col-sm-3">
-    <iframe id="chat-embed" height="100%" width="100%">
-    </iframe>
-  </div>
+  <!-- <div class="col col-sm-3">
+    <iframe id="chat-embed" height="100%" width="100%"></iframe>
+  </div> -->
 </div>
 
 <div class="form-check form-switch">
   <input class="form-check-input" type="checkbox" id="sendAutoMessageStatus">
   <label class="form-check-label" for="sendAutoMessageStatus">Enabling or disabling automatic message sending (<span id="timerAutoMessage">00:01:00</span>)</label>
+  <button type="button" class="btn btn-outline-primary btn-sm ms-2" id="editAutoMessage" data-bs-toggle="modal" data-bs-target="#editAutoMessageModal">Edit auto-messages</button>
 </div>
 
 <hr>
@@ -53,9 +50,12 @@
   </div>
 </div>
 
-<div class="row justify-content-center" id="accounts">
+<div class="row justify-content-center" id="accounts" style="display: none;">
   <div class="loader"></div>
   <span class="text-center">Uploading accounts....</span>
+</div>
+<div class="row justify-content-center" id="accounts-empty" style="display: block;">
+  <span class="text-center">No accounts loaded.</span>
 </div>
 
 <template id="alertTemplate">
@@ -63,8 +63,5 @@
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
 </template>
-
-{% include 'TwitchApp/channel-modal.html' %}
-{% include 'TwitchApp/auto-messages-modal.html' %}
 
 {% endblock %}
