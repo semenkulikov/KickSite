@@ -1,0 +1,103 @@
+@import "../../../../theme/_const.scss";
+
+.stream-embed-container {
+  min-height: 50vh;
+
+  & iframe {
+    box-shadow: $box-shadow-params $color-box-shadow;
+  }
+}
+
+#inputMessage {
+  display: inline-block;
+  width: 80%;
+  background-color: $background-color;
+  color: $font-color;
+
+}
+
+.input-message-send {
+  background-color: $button-twitch;
+  border-color: $background-color-secondary;
+
+  &:hover {
+    background-color: $button-twitch-hover;
+    border-color: transparent;
+  }
+}
+
+#inputLogs {
+  width: 100%;
+  height: 100%;
+  resize: none;
+  outline: none;
+  border-color: $background-color;
+  color: $font-color;
+  padding: 5px;
+
+  &:hover, &:focus {
+    outline: none;
+  }
+  box-shadow: $box-shadow-params $color-box-shadow;
+  background-color: $background-color;
+
+  &::-webkit-scrollbar {
+    width: 10px;
+  }
+  &::-webkit-scrollbar-track {
+    -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: $background-color-secondary;
+    outline: 1px solid $background-color;
+
+  }
+}
+
+.accordion-button {
+  box-shadow: $box-shadow-params $color-box-shadow;
+  background-color: $background-color;
+  color: $font-color;
+  &:focus {
+    box-shadow: none;
+  }
+  &:not(.collapsed), &:hover {
+    box-shadow: $box-shadow-params $color-box-shadow;
+    background-color: $background-color-secondary;
+    color: $font-color;
+  }
+}
+
+.accordion, .accordion-body, .accordion-item, .accordion-item h2 {
+  background-color: $background-color-secondary;
+}
+
+.channel_is-selected {
+  color: $color-twitch;
+}
+.channel_is-not-selected {
+  color: $color-not-available;
+}
+
+.form-check-input {
+  &:focus {
+    box-shadow: none;
+  }
+  &:checked {
+    background-color: $color-twitch;
+    border-color: $color-twitch;
+  }
+}
+
+.alert, .error-save-channel {
+  transition: .5s;
+}
+
+#averageSendingPerMinute {
+  color: $color-twitch;
+}
+
+@import "_change-channel.scss";
+@import "_loader.scss";
+@import "_account.scss";
+@import "_auto-messages-modal.scss";

@@ -1,0 +1,21 @@
+@import "../../../../theme/_const.scss";
+
+.account {
+  border-radius: 10px;
+  border: 1px solid gray;
+  margin: 5px;
+  white-space: pre;
+}
+
+.account-checked {
+  color: $color-twitch;
+  border-color: $color-twitch;
+}
+
+.account-auto-send {
+  color: #ecdb39;
+}
+
+.account__checkbox {
+  display: none;
+}

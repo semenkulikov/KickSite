@@ -170,7 +170,10 @@ USE_TZ = True
 # BASE_DIR = Root\Django\Path
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, "static")
-STATICFILES_DIRS = [str(path / 'static') for path in BASE_DIR.iterdir() if path.is_dir() and (path / 'static').exists()]
+STATICFILES_DIRS = [
+    BASE_DIR / "assets",
+    BASE_DIR / "staticfiles_dev",
+]
 
 STORAGES = {
     "staticfiles": {

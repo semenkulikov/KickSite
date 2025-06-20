@@ -1,0 +1,9 @@
+@import "../../../../theme/_const.scss";
+
+.modal-content {
+  background-color: $background-color-secondary;
+}
+
+#autoMessageTextArea, .autoMessageFrequencyInput {
+  width: 100%;
+}
