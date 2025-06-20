@@ -13,8 +13,11 @@ COPY . .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install Playwright browsers
+RUN playwright install --with-deps chromium
+
 # Expose the port the app runs on
-EXPOSE 8000
+EXPOSE 8080
 
 VOLUME ["/usr/app/database"]
 
@@ -23,4 +26,4 @@ RUN python manage.py collectstatic --noinput  --clear
 RUN ls -la ${STATIC_ROOT}
 
 # Command to run the app
-CMD ["daphne", "-p", "8000", "-b", "0.0.0.0", "Django.asgi:application"]
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8001", "Django.asgi:application"]
