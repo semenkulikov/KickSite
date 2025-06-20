@@ -3,22 +3,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <link rel="icon" type="image/x-icon" href="https://kick.com/favicon.ico">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
+  <link rel="stylesheet" href="{% static 'Django/css/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'Django/css/main.css' %}">
+  <script src="{% static 'Django/js/Django.bundle.js' %}"></script>
+  <script src="{% static 'Django/js/bootstrap.bundle.min.js' %}"></script>
   <title>
   {% block title %}
     WebStreams
   {% endblock %}
   </title>
-
-  <script src="{% static 'Django/js/jquery-3.7.1.min.js' %}"></script>
-  <script src="{% static 'Django/js/ajax_libs_popper.js_1.12.3.min.js' %}"></script>
-  <script src="{% static 'Django/js/bootstrap.bundle.min.js' %}"></script>
-
-  <script src="{% static 'Django/js/Django.bundle.js' %}" defer></script>
-
-  <link rel="stylesheet" href="{% static 'Django/css/main.css' %}">
+  {% block head %}{% endblock %}
 
   <script>
     $(document).ready(function() {
