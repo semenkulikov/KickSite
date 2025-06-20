@@ -25,9 +25,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-66^@$c&62w)t%g6)ew10dvtd77%cve#v6+c-ry%f6spk%v^juh'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True if system() == "Windows" else True
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 't')
 
-ALLOWED_HOSTS = ['127.0.0.1', '0.0.0.0', 'example.com','localhost','5.35.91.173','starkinc.shop']
+ALLOWED_HOSTS = ['127.0.0.1', '0.0.0.0', 'example.com','localhost','5.35.91.173','starkinc.shop', '*']
 
 # Application definition
 
@@ -171,6 +171,12 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, "static")
 STATICFILES_DIRS = [str(path / 'static') for path in BASE_DIR.iterdir() if path.is_dir() and (path / 'static').exists()]
+
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / "media"

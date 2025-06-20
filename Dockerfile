@@ -3,6 +3,7 @@ FROM python:3.12
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
+ENV DEBUG=False
 
 # Set the working directory in the container
 WORKDIR /usr/app
