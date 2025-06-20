@@ -1,8 +1,16 @@
-.stream-embed-container {
-  min-height: 50vh;
+#stream-embed-container {
+  min-height: 80vh;
 }
-.stream-embed-container iframe {
+
+#stream-embed-container iframe {
   box-shadow: 0px 0px 2px 5px rgba(0, 0, 0, 0.13);
+  border-radius: 10px;
+}
+
+#chat-embed {
+  height: 100%;
+  min-height: 80vh;
+  border: none;
 }
 
 .row.mb-2 {

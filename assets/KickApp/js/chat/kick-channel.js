@@ -20,7 +20,7 @@ function changeViewChannel(status, channel = undefined) {
 
         const streamEmbedElem = document.getElementById("chat-embed");
         if (streamEmbedElem) {
-            document.getElementById("chat-embed").src = `https://kick.com/embed/${encodeURIComponent(channel)}/chat?parent=${window.location.hostname}`;
+            document.getElementById("chat-embed").src = `https://kick.com/popout/${encodeURIComponent(channel.toLowerCase())}/chat`;
         }
 
     } else {

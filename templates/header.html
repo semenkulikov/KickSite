@@ -1,3 +1,7 @@
+<head>
+    <link rel="icon" type="image/x-icon" href="https://kick.com/favicon.ico">
+</head>
+
 <nav class="navbar navbar-expand-lg header mb-4" aria-label="Main navigation">
   <div class="container-fluid">
     <a class="navbar-brand" href="{% url 'index' %}">WEB STREAMS</a>
@@ -8,15 +12,15 @@
             Home
           </a>
         </li>
-        <li class="nav-item dropdown">
+          <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name|slice:"0:4" == 'kick' %}menu__link_is-active text-light{% endif %}" href="#" id="kickDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" style="background: #18181b;">
             Kick
           </a>
           <ul class="dropdown-menu bg-dark border-0" aria-labelledby="kickDropdown" style="background: #18181b;">
             <li><a class="dropdown-item text-light {% if request.resolver_match.url_name == 'kick_chat' %}active{% endif %}" style="background: #18181b;" href="{% url 'kick_chat' %}">Chat</a></li>
             <li><a class="dropdown-item text-light {% if request.resolver_match.url_name == 'kick_index' %}active{% endif %}" style="background: #18181b;" href="{% url 'kick_index' %}">Stat</a></li>
-          </ul>
-        </li>
+            </ul>
+          </li>
       </ul>
       <ul class="d-flex navbar-nav mb-2 mb-lg-0">
         {% if user.is_authenticated %}
