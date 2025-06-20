@@ -5,13 +5,19 @@ FROM python:3.12
 ENV PYTHONUNBUFFERED=1
 ENV DEBUG=False
 
+# Install Node.js and npm
+RUN apt-get update && apt-get install -y npm
+
 # Set the working directory in the container
 WORKDIR /usr/app
 
-# Copy only requirements to leverage Docker cache
-COPY requirements.txt .
+# Copy package files and install npm dependencies
+# This is done early to leverage Docker's layer caching
+COPY package.json package-lock.json ./
+RUN npm install
 
-# Install dependencies
+# Copy and install Python requirements
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Playwright browsers
@@ -20,6 +26,9 @@ RUN playwright install --with-deps chromium
 
 # Copy the rest of the project files
 COPY . .
+
+# Build frontend assets
+RUN npm run prod
 
 # Create directory for logs
 RUN mkdir -p /usr/app/logs
