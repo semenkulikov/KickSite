@@ -4,7 +4,7 @@ const webpack = require('webpack');
 module.exports = {
   context: __dirname,
   mode: 'production',
-  devtool: 'source-map',
+  devtool: false,
 
   entry: {
     Django: {
