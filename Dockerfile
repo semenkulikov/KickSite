@@ -8,14 +8,18 @@ ENV DEBUG=False
 # Set the working directory in the container
 WORKDIR /usr/app
 
-# Copy the project files into the Docker container
-COPY . .
+# Copy only requirements to leverage Docker cache
+COPY requirements.txt .
 
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Playwright browsers
+# This will be cached as long as requirements.txt does not change
 RUN playwright install --with-deps chromium
+
+# Copy the rest of the project files
+COPY . .
 
 # Create directory for logs
 RUN mkdir -p /usr/app/logs
