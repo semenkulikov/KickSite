@@ -20,11 +20,6 @@ RUN npm install
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy bootstrap files to the expected directory
-RUN mkdir -p assets/Django/css assets/Django/js
-RUN cp node_modules/bootstrap/dist/css/bootstrap.min.css* assets/Django/css/
-RUN cp node_modules/bootstrap/dist/js/bootstrap.bundle.min.js* assets/Django/js/
-
 # Install Playwright browsers
 # This will be cached as long as requirements.txt does not change
 RUN playwright install --with-deps chromium

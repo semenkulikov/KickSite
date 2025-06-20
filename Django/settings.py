@@ -173,6 +173,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, "static")
 STATICFILES_DIRS = [
     BASE_DIR / "assets",
     BASE_DIR / "node_modules",
+    BASE_DIR / "assets/webpack_bundles",
 ]
 
 STORAGES = {
