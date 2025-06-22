@@ -5,31 +5,16 @@
 	Login - {{ block.super }}
 {% endblock %}
 
-{% block styles %}
-{% endblock %}
-
 {% block content %}
 <div class="container vh-100 d-flex justify-content-center align-items-center">
     <div class="login-container">
-        <h2 class="text-center">Sign in</h2>
-        <form action="login" method="POST">
+        <h2 class="text-center mb-4">Sign in</h2>
+        <form method="post">
             {% csrf_token %}
-            <div class="form-floating">
-                {{ form.login }}
-                <label for="floatingInput">Username</label>
+            {{ form.as_p }}
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary">Sign in</button>
             </div>
-            <div class="form-floating">
-                {{ form.password }}
-                <label for="floatingPassword">Password</label>
-            </div>
-
-            {% if errors %}
-            <div class="form-group mt-3">
-                <p class="login__errors"> {{ errors }} </p>
-            </div>
-            {% endif %}
-
-            <button class="w-100 btn btn-lg btn-light" type="submit">Sign in</button>
         </form>
     </div>
 </div>

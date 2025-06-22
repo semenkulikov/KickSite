@@ -2,74 +2,22 @@
 {% load static %}
 
 {% block title %}
-	Kick Chat
-{% endblock %}
-
-{% block styles %}
-<link rel="stylesheet" href="{% static 'KickApp.bundle.css' %}">
+	Chat - {{ block.super }}
 {% endblock %}
 
 {% block content %}
 
-<div class="row text-center">
-  <div class="col">
-    <h1>Kick Chat: <b><a id="selectedChannel" class="channel_is-not-selected" data-channel-status="false"></a></b> | Work time: <span id="workTimer">00:00:00</span></h1>
-  </div>
-</div>
-
-{% include 'KickApp/auto-messages-modal.html' %}
-{% include 'KickApp/channel-modal.html' %}
-{% include 'KickApp/kick-settings.html' %}
-
-<div class="row mb-2">
-  <div class="col-6">
+<div class="container-fluid" id="main-container">
     <div class="row">
-      <div class="col-12">
-        <iframe id="chat-embed" class="w-100" style="height: 90vh" src="about:blank"></iframe>
-      </div>
+        <div class="col-md-9">
+            <div id="chat-container" class="embed-responsive embed-responsive-16by9">
+                <iframe id="chat-iframe" class="embed-responsive-item" src=""></iframe>
+            </div>
+        </div>
+        <div class="col-md-3">
+            {% include 'KickApp/kick-settings.html' %}
+        </div>
     </div>
-  </div>
-  <div class="col-6">
-    <textarea style="height: 90vh" class="form-control" id="chat-messages" rows="10" readonly></textarea>
-  </div>
 </div>
 
-<div class="form-check form-switch">
-  <input class="form-check-input" type="checkbox" id="sendAutoMessageStatus">
-  <label class="form-check-label" for="sendAutoMessageStatus">Enabling or disabling automatic message sending (<span id="timerAutoMessage">00:01:00</span>)</label>
-  <button type="button" class="btn btn-outline-primary btn-sm ms-2" id="editAutoMessage" data-bs-toggle="modal" data-bs-target="#editAutoMessageModal">Edit auto-messages</button>
-</div>
-
-<hr>
-
-<div class="row text-center pt-2 mb-4">
-  <div class="col">
-    <div class="form-group">
-      <label for="inputMessage"><span id="inputMessageAccountLabel"></span></label>
-      <input type="text" class="form-control pt-1" id="inputMessage">
-      <button type="button" id="sendInputMessage" class="btn btn-success input-message-send w-15">
-        Chat
-      </button>
-    </div>
-  </div>
-</div>
-
-<div class="row justify-content-center" id="accounts" style="display: none;">
-  <div class="loader"></div>
-  <span class="text-center">Uploading accounts....</span>
-</div>
-<div class="row justify-content-center" id="accounts-empty" style="display: block;">
-  <span class="text-center">No accounts loaded.</span>
-</div>
-
-<template id="alertTemplate">
-    <div class="alert alert-dismissible fade show" id="alertBody" style="position: absolute;top: 10px;right: 10px" role="alert">
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-</template>
-
-{% endblock %}
-
-{% block scripts %}
-  <script src="{% static 'KickApp.bundle.js' %}"></script>
 {% endblock %}

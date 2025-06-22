@@ -3,16 +3,12 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const webpack = require('webpack');
 
 module.exports = {
-  context: __dirname,
-  mode: 'production',
-  devtool: 'source-map',
+  mode: 'development',
   entry: {
-    Django: './assets/Django/js/index.js',
-    KickApp: './assets/KickApp/js/chat/chat.js',
-    KickAppStats: './assets/KickApp/js/stats/stats.js',
+    app: './assets/js/index.js',
   },
   output: {
-    path: path.resolve(__dirname, './assets/webpack_bundles/'),
+    path: path.resolve(__dirname, 'assets/webpack_bundles/'),
     filename: '[name].bundle.js',
     clean: true,
   },
@@ -23,17 +19,23 @@ module.exports = {
     new webpack.ProvidePlugin({
       $: 'jquery',
       jQuery: 'jquery',
+      'window.jQuery': 'jquery',
     }),
   ],
-  optimization: {
-    minimize: true,
-  },
   module: {
     rules: [
       {
-        test: /\.css$/i,
+        test: /\.css$/,
         use: [MiniCssExtractPlugin.loader, 'css-loader'],
+      },
+      {
+        test: /\.(woff(2)?|ttf|eot|svg)(\?v=\d+\.\d+\.\d+)?$/,
+        type: 'asset/resource',
+        generator: {
+          filename: 'fonts/[name][ext]',
+        },
       },
     ],
   },
+  devtool: 'source-map',
 };

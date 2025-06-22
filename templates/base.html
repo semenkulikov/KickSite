@@ -1,16 +1,16 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/x-icon" href="https://kick.com/favicon.ico">
   <title>
-  {% block title %}
-    WebStreams
-  {% endblock %}
+    {% block title %}
+      WebStreams
+    {% endblock %}
   </title>
-  <link rel="stylesheet" href="{% static 'Django.bundle.css' %}">
+  <link rel="stylesheet" href="{% static 'app.bundle.css' %}">
   {% block styles %}{% endblock %}
 
   <!-- INCLUDE STATIC  -->
@@ -28,12 +28,7 @@
     {% include "footer.html" %}
   </div>
 
-  <script src="{% static 'Django.bundle.js' %}"></script>
-  <script>
-    $(document).ready(function() {
-        $(".dropdown-toggle").dropdown();
-    });
-  </script>
+  <script src="{% static 'app.bundle.js' %}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
