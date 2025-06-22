@@ -27,13 +27,13 @@ RUN playwright install --with-deps chromium
 # Copy the rest of the project files
 COPY . .
 
+# Create directory for logs, before any django commands are run
+RUN mkdir -p /usr/app/logs
+
 # Build frontend assets
 RUN npm run prod
 RUN python manage.py migrate --noinput
 RUN python manage.py collectstatic --noinput
-
-# Create directory for logs
-RUN mkdir -p /usr/app/logs
 
 # Expose the port the app runs on
 EXPOSE 8000
