@@ -52,7 +52,7 @@ def page_not_found(request, exception):
 
 
 # HTTP Error 500
-def error_view(request, exception):
+def error_view(request):
     return render(request,
                   template_name="error_page.html",
                   status=500,

@@ -17,6 +17,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from Django import views
+from django.conf import settings
+from django.conf.urls.static import static
 
 # from django.conf.urls import (handler400, handler403, handler404, handler500)
 
@@ -28,6 +30,9 @@ urlpatterns = [
     path('kick/', include('KickApp.urls')),
 ]
 
-handler404 = 'Django.views.error_view'
-handler500 = 'Django.views.error_view'
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+handler404 = "Django.views.page_not_found"
+handler500 = "Django.views.error_view"
 handler403 = 'Django.views.permission_denied_view'
