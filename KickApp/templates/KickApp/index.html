@@ -1,51 +1,24 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 {% load static %}
 
-{% block title %}
-	Twitch - {{ block.super }}
-{% endblock %}
+{% block title %}Kick Stats{% endblock %}
 
-{% block static %}
-  <link rel="stylesheet" href="{% static 'TwitchApp/css/stat.css' %}">
-
-  <script src="{% static 'TwitchApp/js/TwitchAppStats.bundle.js' %}" defer></script>
+{% block page_css %}
+    <link rel="stylesheet" href="{% static 'StatCss.bundle.css' %}">
 {% endblock %}
 
 {% block content %}
-
-<div class="row text-center">
-  <div class="col">
-    <h1>Twitch - HOMEPAGE</h1>
-  </div>
-</div>
-
-<div class="row text-center stats-settings">
-  <div class="col">
-    {% if user.is_staff %}
-    <input type="text" class="form-control pt-1" id="inputShowUserStat">
-    <button type="button" id="sendShowUserStat" class="btn btn-success input-message-send ">Show</button>
-    {% endif %}
-    <button type="button" id="showMyStat" class="btn my-1 btn-light">Show my stat</button>
-  </div>
-</div>
-
-<div class="row text-center mb-2">
-  <div class="col">
-    <div class="range-slider">
-      <h5>Show recent:</h5>
-      <input class="range-slider__range" id="showLastStatInput" type="range" value="1" min="1" max="100">
-      <span class="range-slider__value" id="showLastStatCount"></span>
+<div class="row">
+    <div class="col-2">
+        {% include 'KickApp/kick-settings.html' %}
     </div>
-  </div>
+    <div class="col-10">
+        <h1>Kick Stats</h1>
+        <canvas id="viewersChart"></canvas>
+    </div>
 </div>
+{% endblock %}
 
-<div id="statsContainer"></div>
-
-
-<template id="alertTemplate">
-  <div class="alert alert-dismissible fade show" id="alertBody" style="position: absolute;top: 10px;right: 10px" role="alert">
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-  </div>
-</template>
-
+{% block page_js %}
+  <script src="{% static 'KickAppStats.bundle.js' %}"></script>
 {% endblock %}

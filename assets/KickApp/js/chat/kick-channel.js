@@ -7,7 +7,7 @@ $('#changeChannel').on('click', function() {
   setTimeout(function() { $('#editChannelModal').modal('hide'); }, 2);
 });
 
-function changeViewChannel(status, channel = undefined) {
+async function changeViewChannel(status, channel = undefined) {
     const elementSelectedChannel = document.getElementById("selectedChannel");
     if (status) {
         channel = (channel || "").trim();
@@ -20,9 +20,11 @@ function changeViewChannel(status, channel = undefined) {
 
         const streamEmbedElem = document.getElementById("chat-embed");
         if (streamEmbedElem) {
-            document.getElementById("chat-embed").src = `https://kick.com/popout/${encodeURIComponent(channel.toLowerCase())}/chat`;
+            const channelNameWithoutSpaces = channel.replace(/\s/g, '');
+            streamEmbedElem.src = `https://kick.com/popout/${encodeURIComponent(channelNameWithoutSpaces.toLowerCase())}/chat`;
         }
 
+        await addOrUpdateKickChannelDB(channel);
     } else {
         $("#selectedChannel").removeClass();
         elementSelectedChannel.innerHTML = "Not selected";

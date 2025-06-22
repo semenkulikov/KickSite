@@ -1,0 +1,36 @@
+body {
+    background-color: #0e0e10 !important;
+    color: #ffffff;
+}
+
+.modal-content {
+    background-color: #18181b;
+    color: #ffffff;
+}
+
+.form-control {
+    background-color: #3a3a3d;
+    color: #ffffff;
+    border-color: #3a3a3d;
+}
+
+.form-control:focus {
+    background-color: #464649;
+    color: #ffffff;
+    border-color: #9147ff;
+    box-shadow: 0 0 0 0.25rem rgba(145, 71, 255, .25);
+}
+
+.btn-primary {
+    background-color: #9147ff;
+    border-color: #9147ff;
+}
+
+.btn-primary:hover {
+    background-color: #772ce8;
+    border-color: #772ce8;
+}
+
+.btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}

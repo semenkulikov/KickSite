@@ -1,26 +1,32 @@
 const path = require('path');
-const webpack = require('webpack');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+const webpack = require('webpack');
 
 module.exports = {
   context: __dirname,
   mode: 'production',
-  devtool: false,
-  plugins: [new MiniCssExtractPlugin({
-    filename: '[name].bundle.css',
-  })],
-
+  devtool: 'source-map',
   entry: {
     Django: './assets/Django/js/index.js',
     KickApp: './assets/KickApp/js/chat/chat.js',
     KickAppStats: './assets/KickApp/js/stats/stats.js',
-    TwitchApp: './assets/TwitchApp/js/chat/chat.js',
-    TwitchAppStats: './assets/TwitchApp/js/stats/stats.js',
   },
   output: {
     path: path.resolve(__dirname, './assets/webpack_bundles/'),
     filename: '[name].bundle.js',
     clean: true,
+  },
+  plugins: [
+    new MiniCssExtractPlugin({
+      filename: '[name].bundle.css',
+    }),
+    new webpack.ProvidePlugin({
+      $: 'jquery',
+      jQuery: 'jquery',
+    }),
+  ],
+  optimization: {
+    minimize: true,
   },
   module: {
     rules: [

@@ -1,0 +1,9 @@
+.channel-card {
+    border: 1px solid #3a3a3d;
+    background-color: #18181b;
+    color: #efeff1;
+}
+.channel-card.selected {
+    border-color: #9147ff;
+    box-shadow: 0 0 10px #9147ff;
+}
