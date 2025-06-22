@@ -29,12 +29,11 @@ COPY . .
 
 # Build frontend assets
 RUN npm run prod
+RUN python manage.py migrate --noinput
+RUN python manage.py collectstatic --noinput
 
 # Create directory for logs
 RUN mkdir -p /usr/app/logs
-
-# Collect static files
-RUN python manage.py collectstatic --noinput --clear
 
 # Expose the port the app runs on
 EXPOSE 8000

@@ -1,3 +1,5 @@
+import "../../../css/chat.css"
+import "../../../css/channel-modal.css"
 import "./on-load"
 import { showAlert } from './alert'
 import { connect } from './kick-ws'
