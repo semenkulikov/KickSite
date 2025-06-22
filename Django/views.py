@@ -52,8 +52,8 @@ def page_not_found(request, exception):
 
 
 # HTTP Error 500
-def error_view(exception):
-    return render(None,
+def error_view(request, exception):
+    return render(request,
                   template_name="error_page.html",
                   status=500,
                   context={"header": "500 | Error accessing the service",
