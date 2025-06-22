@@ -37,11 +37,9 @@ RUN mkdir -p /usr/app/logs
 RUN python manage.py collectstatic --noinput --clear
 
 # Expose the port the app runs on
-EXPOSE 8080
+EXPOSE 8000
 
 VOLUME ["/usr/app/database"]
 
-RUN ls -la ${STATIC_ROOT}
-
 # Run the application
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8080", "Django.asgi:application"]
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "Django.asgi:application"]
