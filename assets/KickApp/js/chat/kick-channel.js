@@ -55,7 +55,7 @@ function changeChannel() {
             }));
             showAlert(`Channel changed to ${inputChannel}`, 'alert-success');
             
-            const modal = bootstrap.Modal.getInstance(document.getElementById('changeChannelModal'));
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editChannelModal'));
             if (modal) {
                 modal.hide();
             }

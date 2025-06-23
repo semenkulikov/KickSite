@@ -2,18 +2,21 @@ import Chart from 'chart.js/auto';
 import {socket} from "./kick-stats-ws";
 import {showAlert} from "./alert";
 
-document.getElementById('showMyStat').addEventListener('click', function () {
-  const countStat = document.getElementById("showLastStatCount").innerText
-  console.log("SHOW MY STAT")
-  console.log(countStat)
-  socket.send(JSON.stringify({
-    "event": "KICK_STATS_SHOW",
-    "message": {
-      "user": "yourself",
-      "count": countStat
-    },
-  }));
-});
+const showMyStatBtn = document.getElementById('showMyStat');
+if (showMyStatBtn) {
+  showMyStatBtn.addEventListener('click', function () {
+    const countStat = document.getElementById("showLastStatCount").innerText
+    console.log("SHOW MY STAT")
+    console.log(countStat)
+    socket.send(JSON.stringify({
+      "event": "KICK_STATS_SHOW",
+      "message": {
+        "user": "yourself",
+        "count": countStat
+      },
+    }));
+  });
+}
 
 const sendShowUserStat = document.getElementById("sendShowUserStat")
 if (sendShowUserStat) {

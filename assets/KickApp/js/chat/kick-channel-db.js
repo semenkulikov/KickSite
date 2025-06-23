@@ -45,38 +45,55 @@ async function getKickChannel() {
 }
 
 function addOrUpdateKickChannelDB(data) {
-    const request = indexedDB.open('kick_channel_db', 1);
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open('kick_channel_db', 1);
 
-    request.onsuccess = function () {
-        const db = request.result;
-        const transaction = db.transaction('channel', "readwrite");
-        const store = transaction.objectStore('channel');
-
-        const getRequest = store.get('channel');
-
-        getRequest.onsuccess = function () {
-            const existingData = getRequest.result;
-            if (existingData) {
-                existingData.value = data;
-                const updateRequest = store.put(existingData);
-                updateRequest.onsuccess = function () {
-                    console.log("Data updated successfully");
-                };
-            } else {
-                const newData = { id:'channel', value: data };
-                const addRequest = store.add(newData);
-                addRequest.onsuccess = function () {
-                    console.log("Data added successfully");
-                };
-            }
+        request.onerror = function (event) {
+            reject(event.target.error);
         };
 
-        transaction.oncomplete = function () {
-            console.log("Transaction completed");
-            db.close();
-            return true
+        request.onsuccess = function () {
+            const db = request.result;
+            const transaction = db.transaction('channel', "readwrite");
+            const store = transaction.objectStore('channel');
+
+            const getRequest = store.get('channel');
+
+            getRequest.onsuccess = function () {
+                const existingData = getRequest.result;
+                if (existingData) {
+                    existingData.value = data;
+                    const updateRequest = store.put(existingData);
+                    updateRequest.onsuccess = function () {
+                        console.log("Data updated successfully");
+                        resolve();
+                    };
+                    updateRequest.onerror = function (event) {
+                        reject(event.target.error);
+                    };
+                } else {
+                    const newData = { id:'channel', value: data };
+                    const addRequest = store.add(newData);
+                    addRequest.onsuccess = function () {
+                        console.log("Data added successfully");
+                        resolve();
+                    };
+                    addRequest.onerror = function (event) {
+                        reject(event.target.error);
+                    };
+                }
+            };
+
+            getRequest.onerror = function (event) {
+                reject(event.target.error);
+            };
+
+            transaction.oncomplete = function () {
+                console.log("Transaction completed");
+                db.close();
+            };
         };
-    };
+    });
 }
 
 export {getKickChannel, addOrUpdateKickChannelDB}
