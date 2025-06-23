@@ -13,8 +13,9 @@ WORKDIR /usr/app
 
 # Copy package files and install npm dependencies
 # This is done early to leverage Docker's layer caching
-COPY package.json package-lock.json ./
-RUN npm install
+COPY package*.json ./
+ENV NODE_ENV=production
+RUN npm install && npm run prod
 
 # Copy and install Python requirements
 COPY requirements.txt .
