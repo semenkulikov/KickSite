@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Build static files and then prune dev dependencies
-RUN npm run prod && npm prune --production
+RUN npx webpack --mode development && npm prune --production
 
 # Create logs directory for django.log
 RUN mkdir -p logs
