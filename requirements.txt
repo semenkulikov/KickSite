@@ -35,3 +35,4 @@ whitenoise[brotli]==6.7.0
 django-mysql==4.14.0
 requests==2.32.3
 playwright>=1.44.0
+httpx==0.27.0

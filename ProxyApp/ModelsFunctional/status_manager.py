@@ -3,7 +3,6 @@ from django.db.transaction import atomic
 
 
 class ModelStatusManager:
-    status: bool
     save: Callable
 
     @property

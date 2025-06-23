@@ -3,23 +3,29 @@ import {showAlert} from "./alert";
 
 let workTimerId;
 
-document.getElementById("buttonStartWork").addEventListener("click", function () {
-  console.log("Start work");
-  socket.send(JSON.stringify({
-    "event": "KICK_START_WORK",
-    "message": "Start work",
-  }));
-});
+const startWorkBtn = document.getElementById("buttonStartWork");
+if (startWorkBtn) {
+  startWorkBtn.addEventListener("click", function () {
+    console.log("Start work");
+    socket.send(JSON.stringify({
+      "event": "KICK_START_WORK",
+      "message": "Start work",
+    }));
+  });
+}
 
-document.getElementById("buttonEndWork").addEventListener("click", function () {
-  console.log("End work");
-  socket.send(JSON.stringify({
-    "event": "KICK_END_WORK",
-    "message": "End work",
-  }));
-  document.getElementById("buttonEndWork").disabled = true
-  document.getElementById("buttonStartWork").disabled = false
-});
+const endWorkBtn = document.getElementById("buttonEndWork");
+if (endWorkBtn) {
+  endWorkBtn.addEventListener("click", function () {
+    console.log("End work");
+    socket.send(JSON.stringify({
+      "event": "KICK_END_WORK",
+      "message": "End work",
+    }));
+    document.getElementById("buttonEndWork").disabled = true
+    document.getElementById("buttonStartWork").disabled = false
+  });
+}
 
 function workTimer(startTime) {
   const dateOptions = {

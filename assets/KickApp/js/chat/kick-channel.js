@@ -4,7 +4,6 @@ import {socket} from "./kick-ws";
 
 $('#changeChannel').on('click', function() {
   changeChannel()
-  setTimeout(function() { $('#editChannelModal').modal('hide'); }, 2);
 });
 
 async function changeViewChannel(status, channel = undefined) {
@@ -20,8 +19,7 @@ async function changeViewChannel(status, channel = undefined) {
 
         const streamEmbedElem = document.getElementById("chat-embed");
         if (streamEmbedElem) {
-            const channelNameWithoutSpaces = channel.replace(/\s/g, '');
-            streamEmbedElem.src = `https://kick.com/popout/${encodeURIComponent(channelNameWithoutSpaces.toLowerCase())}/chat`;
+            streamEmbedElem.src = `https://kick.com/popout/${encodeURIComponent(channel.toLowerCase())}/chat`;
         }
 
         await addOrUpdateKickChannelDB(channel);
@@ -48,22 +46,23 @@ function changeChannel() {
       inputChannel = splitInputChannel[splitInputChannel.length - 1]
     }
     inputChannel = inputChannel.replace(/^@+/, '');
-    addOrUpdateKickChannelDB(inputChannel);
-    changeViewChannel(true, inputChannel);
-    showAlert("Channel changed successfully", "alert-success")
-    if (window.socket && window.socket.readyState === 1) {
-      window.socket.send(JSON.stringify({
-        "event": "KICK_SELECT_CHANNEL",
-        "message": {"channel": inputChannel}
-      }));
-    } else if (socket && socket.readyState === 1) {
-      socket.send(JSON.stringify({
-        "event": "KICK_SELECT_CHANNEL",
-        "message": {"channel": inputChannel}
-      }));
-    } else {
-      showAlert("WebSocket is not connected!", "alert-danger");
-    }
+    addOrUpdateKickChannelDB(inputChannel)
+        .then(() => {
+            changeViewChannel(true, inputChannel);
+            socket.send(JSON.stringify({
+                "event": "KICK_UPDATE_CHANNEL",
+                "message": inputChannel,
+            }));
+            showAlert(`Channel changed to ${inputChannel}`, 'alert-success');
+            
+            const modal = bootstrap.Modal.getInstance(document.getElementById('changeChannelModal'));
+            if (modal) {
+                modal.hide();
+            }
+        })
+        .catch(err => {
+            showAlert('Failed to change channel', 'alert-danger');
+        });
   } else {
     showAlert("Are you trying to save an empty channel", "alert-danger")
   }

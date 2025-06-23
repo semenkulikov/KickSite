@@ -59,7 +59,6 @@ class ProxyAdmin(admin.ModelAdmin):
         urls = super(ProxyAdmin, self).get_urls()
         custom_urls = [
             path("import/", self.process_import, name='process_import'),
-            path("assign-proxies/", self.assign_proxies, name='assign_proxies'),
         ]
         return custom_urls + urls
 
@@ -71,30 +70,7 @@ class ProxyAdmin(admin.ModelAdmin):
             messages.error(request, f"Import failed: {str(e)}")
         return HttpResponseRedirect("../")
 
-    def assign_proxies(self, request):
-        """Назначает свободные прокси аккаунтам без прокси"""
-        try:
-            assigned_count = Proxy.assign_proxies_to_accounts_without_proxy()
-            free_count = Proxy.get_free_proxy_count()
-            
-            if assigned_count > 0:
-                messages.success(
-                    request, 
-                    f"Успешно назначено {assigned_count} прокси аккаунтам. "
-                    f"Осталось {free_count} свободных прокси."
-                )
-            else:
-                messages.info(
-                    request,
-                    f"Нет аккаунтов без прокси или нет свободных прокси. "
-                    f"Свободных прокси: {free_count}"
-                )
-        except Exception as e:
-            messages.error(request, f"Error assigning proxies: {str(e)}")
-        
-        return HttpResponseRedirect("../")
-
-    list_display = ('url', 'status', 'is_twitch_used')
+    list_display = ('url', 'status')
     list_filter = ('status', )
     search_fields = ('url', )
     save_on_top = True

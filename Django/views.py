@@ -14,24 +14,24 @@ def index_view(request):
 
 def login_view(request):
     if request.user.is_authenticated:
-        return redirect("/")
+        return redirect('index')
 
-    login_form = LoginForm(request.POST)
-    if login_form:
-        if login_form.is_valid():
-            input_login = login_form.cleaned_data["login"]
-            input_password = login_form.cleaned_data["password"]
-
+    if request.method == 'POST':
+        form = LoginForm(request.POST)
+        if form.is_valid():
+            input_login = form.cleaned_data["login"]
+            input_password = form.cleaned_data["password"]
             user = authenticate(username=input_login, password=input_password)
             if user is not None:
                 login(request, user)
-                return redirect(request.path)
+                next_page = request.GET.get('next', 'index')
+                return redirect(next_page)
             else:
-                return render(request,
-                              template_name="login.html",
-                              context={"form": login_form, "errors": "Incorrect login or password"})
+                form.add_error(None, "Incorrect login or password")
+    else:
+        form = LoginForm()
 
-    return render(request, template_name="login.html", context={"form": login_form})
+    return render(request, 'login.html', {'form': form})
 
 
 def logout_view(request):
