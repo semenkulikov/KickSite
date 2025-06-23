@@ -25,6 +25,9 @@ COPY . .
 # Build static files and then prune dev dependencies
 RUN npm run prod && npm prune --production
 
+# Create logs directory for django.log
+RUN mkdir -p logs
+
 # Collect static files
 RUN python manage.py collectstatic --noinput
 
