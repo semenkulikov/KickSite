@@ -11,9 +11,8 @@ RUN apt-get update && apt-get install -y npm
 # Set the working directory in the container
 WORKDIR /usr/app
 
-# Copy package files and install npm dependencies first for caching
+# Copy package files and install npm dependencies
 COPY package*.json ./
-ENV NODE_ENV=production
 RUN npm install
 
 # Copy and install Python requirements
@@ -23,8 +22,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
-# Build static files now that all source code is present
-RUN npm run prod
+# Build static files and then prune dev dependencies
+RUN npm run prod && npm prune --production
 
 # Collect static files
 RUN python manage.py collectstatic --noinput
