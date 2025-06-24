@@ -1,7 +1,7 @@
 import {getFrequency, addOrUpdateFrequencyDB} from "./kick-frequency-db";
 import {getAutoMessages, addAutoMessages, clearAllAutoMessages, openAutoMessagesDB} from "./kick-auto-messages-db";
 import {addMessageToLogs} from "./kick-input-logs";
-import {socket} from "./kick-ws";
+import {socket, workStatus} from "./kick-ws";
 import {showAlert} from "./alert";
 
 let intervalSendAutoMessageId;
@@ -19,6 +19,15 @@ if (document.getElementById("saveAutoMessages")) {
 document.getElementById("saveAutoMessages").addEventListener("click", function () {
   console.log("Click save auto messages");
   saveAutoMessages()
+  setTimeout(function() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('editAutoMessageModal'));
+    if (modal) {
+      modal.hide();
+      document.body.classList.remove('modal-open');
+      document.body.style = '';
+      document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+    }
+  }, 200);
 });
 }
 

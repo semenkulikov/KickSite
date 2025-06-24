@@ -7,50 +7,57 @@
 
 {% block content %}
 
-<div class="row text-center">
-  <div class="col">
-    <h1>Kick Chat: <b><a id="selectedChannel" class="channel_is-selected" data-channel-status="true"></a></b> | Work time: <span id="workTimer">00:00:00</span></h1>
+<div class="row">
+  <div class="col-12 mb-3">
+    <!-- Стрим -->
+    <iframe id="stream-embed" style="width:100%;height:600px;background:#18181b;border-radius:10px;" frameborder="0" allowfullscreen="true"></iframe>
   </div>
 </div>
-
-{% include 'KickApp/kick-settings.html' %}
-
-<div class="row mb-2">
-  <div class="col col-md-6">
-    <textarea id="inputLogs" disabled style="height: 350px; width: 100%; background: #18181b; color: #fff; border-radius: 10px;"></textarea>
+<div class="row">
+  <div class="col-md-3">
+    <!-- Чат трансляции -->
+    <iframe id="chat-embed" style="width: 100%; height: 600px; background: #18181b; border-radius: 10px; margin-bottom: 10px;" frameborder="0" allowfullscreen="true" scrolling="no"></iframe>
   </div>
-  <div class="col col-md-6 stream-embed-container">
-    <iframe id="chat-embed" style="height: 350px; width: 100%; background: #18181b; border-radius: 10px;" frameborder="0" allowfullscreen="true" scrolling="no"></iframe>
-  </div>
-</div>
-
-<div class="row align-items-center my-3">
-    <div class="col-md-6">
-<div class="form-check form-switch">
-  <input class="form-check-input" type="checkbox" id="sendAutoMessageStatus">
-  <label class="form-check-label" for="sendAutoMessageStatus">Enabling or disabling automatic message sending (<span id="timerAutoMessage">00:01:00</span>)</label>
-</div>
+  <div class="col-md-6">
+    <!-- Центр: отправка сообщений, автосообщения, input, кнопки -->
+    <div class="row text-center mb-2">
+      <div class="col">
+        <h1>Kick Chat: <b><a id="selectedChannel" class="channel_is-selected" data-channel-status="true"></a></b> | Work time: <span id="workTimer">00:00:00</span></h1>
+      </div>
     </div>
-    <div class="col-md-6">
-    <div class="form-group">
+    {% include 'KickApp/kick-settings.html' %}
+    <div class="row align-items-center my-3">
+      <div class="col-md-6">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="sendAutoMessageStatus">
+          <label class="form-check-label" for="sendAutoMessageStatus">Enabling or disabling automatic message sending (<span id="timerAutoMessage">00:01:00</span>)</label>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="form-group">
           <label for="inputMessage" class="visually-hidden">Message</label>
           <div class="input-group">
-              <input type="text" class="form-control" id="inputMessage" placeholder="Send a message">
-              <button type="button" id="sendInputMessage" class="btn btn-success">
-        Chat
-      </button>
+            <input type="text" class="form-control" id="inputMessage" placeholder="Send a message">
+            <button type="button" id="sendInputMessage" class="btn btn-success">
+              Chat
+            </button>
           </div>
           <small id="inputMessageAccountLabel" class="form-text text-muted"></small>
+        </div>
+      </div>
+    </div>
+    <div class="d-grid gap-2 mt-3">
+      <button id="buttonStartWork" type="button" class="btn btn-success w-100">Start work</button>
+      <button id="buttonEndWork" type="button" class="btn btn-danger w-100">End work</button>
     </div>
   </div>
-</div>
-
-<div class="row justify-content-center mt-4" id="accounts">
-  <div class="d-flex justify-content-center align-items-center">
-    <div class="spinner-border text-primary" role="status">
-      <span class="visually-hidden">Loading...</span>
+  <div class="col-md-3" id="accounts">
+    <div class="d-flex justify-content-center align-items-center">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <span class="ms-2">Uploading accounts....</span>
     </div>
-    <span class="ms-2">Uploading accounts....</span>
   </div>
 </div>
 

@@ -5,26 +5,28 @@ let workTimerId;
 
 const startWorkBtn = document.getElementById("buttonStartWork");
 if (startWorkBtn) {
+  startWorkBtn.classList.add('btn', 'btn-success', 'mb-2', 'w-100');
   startWorkBtn.addEventListener("click", function () {
-  console.log("Start work");
-  socket.send(JSON.stringify({
-    "event": "KICK_START_WORK",
-    "message": "Start work",
-  }));
-});
+    console.log("Start work");
+    socket.send(JSON.stringify({
+      "event": "KICK_START_WORK",
+      "message": "Start work",
+    }));
+  });
 }
 
 const endWorkBtn = document.getElementById("buttonEndWork");
 if (endWorkBtn) {
+  endWorkBtn.classList.add('btn', 'btn-danger', 'mb-2', 'w-100');
   endWorkBtn.addEventListener("click", function () {
-  console.log("End work");
-  socket.send(JSON.stringify({
-    "event": "KICK_END_WORK",
-    "message": "End work",
-  }));
-  document.getElementById("buttonEndWork").disabled = true
-  document.getElementById("buttonStartWork").disabled = false
-});
+    console.log("End work");
+    socket.send(JSON.stringify({
+      "event": "KICK_END_WORK",
+      "message": "End work",
+    }));
+    document.getElementById("buttonEndWork").disabled = true
+    document.getElementById("buttonStartWork").disabled = false
+  });
 }
 
 function workTimer(startTime) {

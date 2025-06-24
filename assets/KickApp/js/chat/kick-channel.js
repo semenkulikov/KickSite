@@ -23,12 +23,21 @@ async function changeViewChannel(status, channel = undefined) {
             streamEmbedElem.src = `https://kick.com/popout/${encodeURIComponent(channel)}/chat`;
         }
 
+        const streamIframe = document.getElementById("stream-embed");
+        if (streamIframe) {
+            streamIframe.src = `https://player.kick.com/${encodeURIComponent(channel)}`;
+        }
+
         await addOrUpdateKickChannelDB(channel);
     } else {
         $("#selectedChannel").removeClass();
         elementSelectedChannel.innerHTML = "Not selected";
         elementSelectedChannel.dataset.status = "not-selected";
         elementSelectedChannel.classList.add("channel_is-not-selected");
+        const streamEmbedElem = document.getElementById("chat-embed");
+        if (streamEmbedElem) streamEmbedElem.src = '';
+        const streamIframe = document.getElementById("stream-embed");
+        if (streamIframe) streamIframe.src = '';
     }
     return true;
 }

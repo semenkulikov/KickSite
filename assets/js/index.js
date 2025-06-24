@@ -5,7 +5,7 @@ window.jQuery = jquery;
 
 // Import Bootstrap SCSS instead of CSS
 import 'bootstrap/scss/bootstrap.scss';
-import 'bootstrap/dist/js/bootstrap.bundle.js';
+// import 'bootstrap/dist/js/bootstrap.bundle.js';
 import * as bootstrap from 'bootstrap';
 window.bootstrap = bootstrap;
 
@@ -52,4 +52,20 @@ getKickChannel().then(channel => {
   console.error("Error getting kick channel:", error);
   showAlert("Could not load channel settings.", "alert-danger");
   changeViewChannel(false);
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (window.bootstrap) {
+    document.querySelectorAll('.dropdown-toggle').forEach(el => {
+      new bootstrap.Dropdown(el);
+    });
+  }
+  // Глобальный фикс для backdrop/modal-open
+  document.querySelectorAll('.modal').forEach(function(modalEl) {
+    modalEl.addEventListener('hidden.bs.modal', function() {
+      document.body.classList.remove('modal-open');
+      document.body.style = '';
+      document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+    });
+  });
 }); 
