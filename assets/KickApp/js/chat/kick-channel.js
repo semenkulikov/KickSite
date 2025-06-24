@@ -48,8 +48,8 @@ function changeChannel() {
     inputChannel = inputChannel.replace(/^@+/, '');
     addOrUpdateKickChannelDB(inputChannel)
         .then(() => {
-            changeViewChannel(true, inputChannel);
-            socket.send(JSON.stringify({
+    changeViewChannel(true, inputChannel);
+      socket.send(JSON.stringify({
                 "event": "KICK_UPDATE_CHANNEL",
                 "message": inputChannel,
             }));

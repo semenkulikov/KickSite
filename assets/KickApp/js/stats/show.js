@@ -5,17 +5,17 @@ import {showAlert} from "./alert";
 const showMyStatBtn = document.getElementById('showMyStat');
 if (showMyStatBtn) {
   showMyStatBtn.addEventListener('click', function () {
-    const countStat = document.getElementById("showLastStatCount").innerText
-    console.log("SHOW MY STAT")
-    console.log(countStat)
-    socket.send(JSON.stringify({
-      "event": "KICK_STATS_SHOW",
-      "message": {
-        "user": "yourself",
-        "count": countStat
-      },
-    }));
-  });
+  const countStat = document.getElementById("showLastStatCount").innerText
+  console.log("SHOW MY STAT")
+  console.log(countStat)
+  socket.send(JSON.stringify({
+    "event": "KICK_STATS_SHOW",
+    "message": {
+      "user": "yourself",
+      "count": countStat
+    },
+  }));
+});
 }
 
 const sendShowUserStat = document.getElementById("sendShowUserStat")
