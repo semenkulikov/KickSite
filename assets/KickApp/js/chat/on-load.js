@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
       changeViewChannel(false);
     }
     }).catch((error) => {
-    console.error('Error:', error);
+    console.error('Error loading channel:', error);
   });
 
   console.log("Load auto-messages if exists")

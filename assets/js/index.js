@@ -6,6 +6,8 @@ window.jQuery = jquery;
 // Import Bootstrap SCSS instead of CSS
 import 'bootstrap/scss/bootstrap.scss';
 import 'bootstrap/dist/js/bootstrap.bundle.js';
+import * as bootstrap from 'bootstrap';
+window.bootstrap = bootstrap;
 
 // Import project styles
 import '../css/login.css';

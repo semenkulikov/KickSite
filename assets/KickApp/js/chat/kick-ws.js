@@ -34,6 +34,10 @@ function connect() {
     }, 1000);
   };
 
+  socket.onerror = function (e) {
+    console.error('WebSocket error:', e);
+  };
+
   socket.onmessage = function (e) {
     // On getting the message from the server
     // Do the appropriate steps on each event.

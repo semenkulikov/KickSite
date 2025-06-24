@@ -10,6 +10,7 @@ async function changeViewChannel(status, channel = undefined) {
     const elementSelectedChannel = document.getElementById("selectedChannel");
     if (status) {
         channel = (channel || "").trim();
+        channel = channel.replace(/\s+/g, '').toLowerCase();
         $("#selectedChannel").removeClass();
         elementSelectedChannel.href = `https://kick.com/${encodeURIComponent(channel)}`
         elementSelectedChannel.target = "_blank"
@@ -19,7 +20,7 @@ async function changeViewChannel(status, channel = undefined) {
 
         const streamEmbedElem = document.getElementById("chat-embed");
         if (streamEmbedElem) {
-            streamEmbedElem.src = `https://kick.com/popout/${encodeURIComponent(channel.toLowerCase())}/chat`;
+            streamEmbedElem.src = `https://kick.com/popout/${encodeURIComponent(channel)}/chat`;
         }
 
         await addOrUpdateKickChannelDB(channel);
@@ -46,6 +47,7 @@ function changeChannel() {
       inputChannel = splitInputChannel[splitInputChannel.length - 1]
     }
     inputChannel = inputChannel.replace(/^@+/, '');
+    inputChannel = inputChannel.replace(/\s+/g, '').toLowerCase();
     addOrUpdateKickChannelDB(inputChannel)
         .then(() => {
     changeViewChannel(true, inputChannel);
@@ -58,10 +60,13 @@ function changeChannel() {
             const modal = bootstrap.Modal.getInstance(document.getElementById('editChannelModal'));
             if (modal) {
                 modal.hide();
+                document.body.classList.remove('modal-open');
+                document.body.style = '';
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
             }
         })
         .catch(err => {
-            showAlert('Failed to change channel', 'alert-danger');
+            console.error('Failed to change channel', err);
         });
   } else {
     showAlert("Are you trying to save an empty channel", "alert-danger")

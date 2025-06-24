@@ -31,6 +31,9 @@ function showAlert(message, status) {
   notificationContainer.appendChild(elem);
 
   console.log(message)
+  if (status === 'alert-danger') {
+    console.trace('showAlert (danger):', message);
+  }
   setTimeout(function(){
      elem.style.animation = 'slideOut 0.3s ease-in';
      setTimeout(() => {
