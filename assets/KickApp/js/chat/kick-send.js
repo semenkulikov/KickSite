@@ -1,7 +1,7 @@
 import {showAlert} from "./alert";
 import {addMessageToLogs} from "./kick-input-logs";
 import {selectAccount} from "./kick-account";
-import {socket, workStatus} from "./kick-ws";
+import {getKickSocket, workStatus} from "./kick-ws";
 
 let averageSendingPerMinuteId;
 
@@ -36,7 +36,7 @@ function kickSend() {
     if(workStatus) {
       messagesSent++;
       addMessageToLogs(data)
-      socket.send(JSON.stringify({
+      getKickSocket().send(JSON.stringify({
         "event": "KICK_SEND_MESSAGE",
         "message": data,
       }));

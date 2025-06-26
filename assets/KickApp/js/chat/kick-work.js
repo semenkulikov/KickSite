@@ -1,4 +1,4 @@
-import {awaitAccountsPingStatus, socket, workStatus} from "./kick-ws";
+import {awaitAccountsPingStatus, getKickSocket, workStatus} from "./kick-ws";
 import {showAlert} from "./alert";
 
 let workTimerId;
@@ -8,7 +8,7 @@ if (startWorkBtn) {
   startWorkBtn.classList.add('btn', 'btn-success', 'mb-2', 'w-100');
   startWorkBtn.addEventListener("click", function () {
     console.log("Start work");
-    socket.send(JSON.stringify({
+    getKickSocket().send(JSON.stringify({
       "event": "KICK_START_WORK",
       "message": "Start work",
     }));
@@ -20,7 +20,7 @@ if (endWorkBtn) {
   endWorkBtn.classList.add('btn', 'btn-danger', 'mb-2', 'w-100');
   endWorkBtn.addEventListener("click", function () {
     console.log("End work");
-    socket.send(JSON.stringify({
+    getKickSocket().send(JSON.stringify({
       "event": "KICK_END_WORK",
       "message": "End work",
     }));

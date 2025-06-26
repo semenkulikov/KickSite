@@ -30,6 +30,7 @@ import '../Django/js/footer.js';
 import { changeChannel, changeViewChannel } from '../KickApp/js/chat/kick-channel.js';
 import { getKickChannel } from '../KickApp/js/chat/kick-channel-db.js';
 import { showAlert } from '../KickApp/js/chat/alert.js';
+import { getKickSocket } from '../KickApp/js/chat/kick-ws.js';
 
 
 // --- Event Listeners ---
@@ -53,6 +54,8 @@ getKickChannel().then(channel => {
   showAlert("Could not load channel settings.", "alert-danger");
   changeViewChannel(false);
 });
+
+getKickSocket();
 
 document.addEventListener('DOMContentLoaded', function() {
   if (window.bootstrap) {

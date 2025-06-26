@@ -1,54 +1,66 @@
-import {socket, awaitAccountsPingStatus} from "./kick-ws";
+import {getKickSocket, awaitAccountsPingStatus} from "./kick-ws";
 import {showAlert} from "./alert";
 
 const kickAccounts = document.getElementsByClassName('account__checkbox');
 
-function showAccounts(data) {
+function showAccounts(accounts) {
+    console.log('[showAccounts] called with', accounts);
     const accountsContainer = document.getElementById("accounts");
-    document.getElementById("buttonStartWork").disabled = false
-
+    document.getElementById("buttonStartWork").disabled = false;
     accountsContainer.innerHTML = "";
 
-    $.each(data, function (index, value) {
-        let account = document.createElement("div");
-        account.className = "col col-md-3 gy-1 py-1 control account text-center";
+    if (!accounts.length) return;
 
-        let label = document.createElement("label");
-        label.className = "checkbox";
+    accounts.forEach((acc, idx) => {
+        let block = document.createElement("div");
+        block.className = "account-block d-flex align-items-center gap-2 mb-2 p-2 rounded bg-dark";
 
-        const input = document.createElement("input");
-        input.type = "checkbox";
-        input.className = "account__checkbox";
-        input.id = `account-${index}`;
-        input.value = index;
+        // Аватар-заглушка (можно заменить на реальный)
+        let avatar = document.createElement("div");
+        avatar.className = "account-avatar me-2";
+        avatar.style = "width:32px;height:32px;border-radius:50%;background:#23232a;display:flex;align-items:center;justify-content:center;font-weight:bold;color:#fff;";
+        avatar.innerText = acc.login[0]?.toUpperCase() || "?";
+        block.appendChild(avatar);
 
-        const text = document.createTextNode(index);
-        label.appendChild(input);
-        label.appendChild(text);
+        // Логин
+        let login = document.createElement("span");
+        login.className = "account-login fw-bold";
+        login.innerText = acc.login;
+        block.appendChild(login);
 
-        account.appendChild(label);
-
-        account.appendChild(document.createElement("br"));
-
+        // Статус
         let badgeStatus = document.createElement("span");
-        badgeStatus.className = `badge ${value ? "bg-success" : "bg-danger"} rounded-pill`;
+        badgeStatus.className = "badge bg-success ms-2";
         badgeStatus.innerText = "S";
-        account.appendChild(badgeStatus);
+        block.appendChild(badgeStatus);
 
-        account.addEventListener("click", function (e) {
+        // Чекбокс
+        let input = document.createElement("input");
+        input.type = "checkbox";
+        input.className = "account__checkbox ms-2";
+        input.id = `account-${acc.id}`;
+        input.value = acc.login;
+        block.appendChild(input);
+
+        // Клик по блоку — выделяет аккаунт
+        block.addEventListener("click", function (e) {
             selectAccount(input.id);
-        })
+        });
 
-        accountsContainer.appendChild(account);
+        accountsContainer.appendChild(block);
+    });
 
-    })
+    // Автовыделение первого аккаунта
+    if (accounts.length > 0) {
+        selectAccount(`account-${accounts[0].id}`);
+    }
 }
 
 function awaitAccounts() {
   console.log("AWAIT ACCOUNTS")
   setInterval(function () {
     if (awaitAccountsPingStatus) {
-      socket.send(JSON.stringify({
+      getKickSocket().send(JSON.stringify({
         "event": "KICK_AWAIT_ACCOUNTS",
         "message": "PING",
       }));
@@ -69,6 +81,7 @@ function selectAccount(id) {
 }
 
 function showNoAccounts(){
+  console.log('[showNoAccounts] called');
   const accountsContainer = document.getElementById("accounts");
 
   accountsContainer.innerHTML = "";
@@ -78,4 +91,9 @@ function showNoAccounts(){
   accountsContainer.appendChild(message)
 }
 
-export {showAccounts, selectAccount, showNoAccounts, awaitAccounts}
+window.showAccounts = showAccounts;
+window.selectAccount = selectAccount;
+window.showNoAccounts = showNoAccounts;
+window.awaitAccounts = awaitAccounts;
+
+export { showAccounts, showNoAccounts, awaitAccounts };

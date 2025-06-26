@@ -3,6 +3,7 @@ import json
 import httpx
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
+from django.db import models
 from KickApp.models import KickAccount
 
 
@@ -44,7 +45,7 @@ async def send_kick_message(chatbot_id: int, channel: str, message: str, token: 
 
 class KickAppChatWs(AsyncWebsocketConsumer):
     def __init__(self, *args, **kwargs):
-        super().__init__(args, kwargs)
+        super().__init__(*args, **kwargs)
         self.channel_group_name = None
         self.work_task = None
 
@@ -55,13 +56,14 @@ class KickAppChatWs(AsyncWebsocketConsumer):
         if self.work_task:
             self.work_task.cancel()
         
-        if self.channel_group_name:
+        if self.channel_group_name and self.channel_layer is not None:
             await self.channel_layer.group_discard(
                 self.channel_group_name,
                 self.channel_name
             )
 
     async def receive(self, text_data=None, bytes_data=None):
+        print('[KICK-WS] RECEIVE:', text_data)
         if not text_data:
             return
             
@@ -69,19 +71,22 @@ class KickAppChatWs(AsyncWebsocketConsumer):
         _type = json_data.get('type')
 
         if _type == 'KICK_SELECT_CHANNEL':
+            print('[KICK-WS] KICK_SELECT_CHANNEL:', json_data)
             channel_name = json_data.get('channel')
             if not channel_name:
                 return
 
             self.channel_group_name = channel_name.replace(' ', '')
-            await self.channel_layer.group_add(
-                self.channel_group_name,
-                self.channel_name
-            )
-            accounts = await sync_to_async(list)(KickAccount.objects.all().values('id', 'login'))
+            if self.channel_layer is not None:
+                await self.channel_layer.group_add(
+                    self.channel_group_name,
+                    self.channel_name
+                )
+            accounts = await sync_to_async(list)(KickAccount.objects.filter(status=True).values('id', 'login'))
+            print('[KICK-WS] SEND ACCOUNTS:', accounts)
             await self.send(text_data=json.dumps({
-                'type': 'KICK_ACCOUNTS',
-                'accounts': accounts
+                'event': 'KICK_ACCOUNTS',
+                'message': accounts
             }))
 
         elif _type == 'KICK_START_WORK':

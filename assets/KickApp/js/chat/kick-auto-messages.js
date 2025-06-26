@@ -1,7 +1,7 @@
 import {getFrequency, addOrUpdateFrequencyDB} from "./kick-frequency-db";
 import {getAutoMessages, addAutoMessages, clearAllAutoMessages, openAutoMessagesDB} from "./kick-auto-messages-db";
 import {addMessageToLogs} from "./kick-input-logs";
-import {socket, workStatus} from "./kick-ws";
+import {getKickSocket, workStatus} from "./kick-ws";
 import {showAlert} from "./alert";
 
 let intervalSendAutoMessageId;
@@ -78,7 +78,7 @@ document.getElementById('sendAutoMessageStatus').addEventListener('click', funct
                     "auto": true
                 }
                 addMessageToLogs(data);
-                socket.send(JSON.stringify({
+                getKickSocket().send(JSON.stringify({
                     "event": "KICK_SEND_MESSAGE",
                     "message": data,
                 }));

@@ -1,6 +1,6 @@
 import {addOrUpdateKickChannelDB} from "./kick-channel-db";
 import {showAlert} from "./alert";
-import {socket} from "./kick-ws";
+import {getKickSocket} from "./kick-ws";
 
 $('#changeChannel').on('click', function() {
   changeChannel()
@@ -60,9 +60,10 @@ function changeChannel() {
     addOrUpdateKickChannelDB(inputChannel)
         .then(() => {
     changeViewChannel(true, inputChannel);
-      socket.send(JSON.stringify({
-                "event": "KICK_UPDATE_CHANNEL",
-                "message": inputChannel,
+    window.selectedChannel = inputChannel;
+      getKickSocket().send(JSON.stringify({
+                "type": "KICK_SELECT_CHANNEL",
+                "channel": inputChannel,
             }));
             showAlert(`Channel changed to ${inputChannel}`, 'alert-success');
             
