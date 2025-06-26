@@ -12,9 +12,8 @@ class KickAccount(models.Model):
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='kick_accounts')
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
-    status = models.CharField(max_length=16, choices=[('active', 'Active'), ('inactive', 'Inactive')], default='inactive')
-    session_token = models.CharField(max_length=300, blank=True, null=True)
-
+    status = models.CharField(max_length=16, choices=[('active', 'Active'), ('inactive', 'Inactive')], default='active')
+    session_token = models.CharField(max_length=400, blank=True, null=True)
     def __str__(self):
         return self.login
 
