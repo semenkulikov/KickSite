@@ -11,12 +11,12 @@ let _kickSocketInitialized = false;
 function getKickSocket() {
   if (_kickSocket) return _kickSocket;
 
-  const loc = window.location;
+const loc = window.location;
   let wsStart = loc.protocol === 'https:' ? 'wss://' : 'ws://';
-  let endpoint = wsStart + loc.host + '/ws-kick/chat';
-  const socket = new WebSocket(endpoint);
-  let awaitAccountsPingStatus;
-  let workStatus = false;
+let endpoint = wsStart + loc.host + '/ws-kick/chat';
+const socket = new WebSocket(endpoint);
+let awaitAccountsPingStatus;
+let workStatus = false;
 
   // === DEBUG LOGGING ===
   console.log('[KICK-WS] init kick-ws.js');
@@ -43,23 +43,23 @@ function getKickSocket() {
   };
 
   if (!_kickSocketInitialized) {
-    socket.onmessage = function (e) {
+  socket.onmessage = function (e) {
       console.log('[KICK-WS] onmessage FIRED', e.data);
       const data = JSON.parse(e.data);
       let event = data["event"] || data["type"];
       let message = data['message'] || data['accounts'];
       console.log('[KICK-WS] event:', event, 'message:', message);
-      switch (event) {
-        case 'KICK':
-          break;
-        case 'KICK_CHANNEL_INFO':
-          if (message) {
-            console.log("KICK_CHANNEL_INFO", message);
-            showAlert(`Channel loaded: ${message.username || message.slug || ''}`, "alert-success");
-          } else if (data.error) {
-            showAlert(`Channel error: ${data.error}`, "alert-danger");
-          }
-          break;
+    switch (event) {
+      case 'KICK':
+        break;
+      case 'KICK_CHANNEL_INFO':
+        if (message) {
+          console.log("KICK_CHANNEL_INFO", message);
+          showAlert(`Channel loaded: ${message.username || message.slug || ''}`, "alert-success");
+        } else if (data.error) {
+          showAlert(`Channel error: ${data.error}`, "alert-danger");
+        }
+        break;
         case 'KICK_ACCOUNTS':
           import('./kick-account').then(mod => {
             let accountsList = Array.isArray(message) ? message : (message && message.accounts ? message.accounts : []);
@@ -70,78 +70,78 @@ function getKickSocket() {
           });
           awaitAccountsPingStatus = false;
           break;
-        case 'KICK_LOAD_ACCOUNTS':
+      case 'KICK_LOAD_ACCOUNTS':
           import('./kick-account').then(mod => {
             if (mod.showAccounts) mod.showAccounts(message);
             else if (mod.default && mod.default.showAccounts) mod.default.showAccounts(message);
             else console.error('showAccounts not found in kick-account module', mod);
           });
-          awaitAccountsPingStatus = false;
-          break;
-        case 'KICK_AWAIT_ACCOUNTS':
-          awaitAccountsPingStatus = true;
+        awaitAccountsPingStatus = false;
+        break;
+      case 'KICK_AWAIT_ACCOUNTS':
+        awaitAccountsPingStatus = true;
           import('./kick-account').then(mod => {
             if (mod.awaitAccounts) mod.awaitAccounts();
             else if (mod.default && mod.default.awaitAccounts) mod.default.awaitAccounts();
             else console.error('awaitAccounts not found in kick-account module', mod);
           });
-          break;
-        case 'KICK_STOP_AWAIT_ACCOUNTS':
-          awaitAccountsPingStatus = false;
+        break;
+      case 'KICK_STOP_AWAIT_ACCOUNTS':
+        awaitAccountsPingStatus = false;
           import('./kick-account').then(mod => {
             if (mod.showNoAccounts) mod.showNoAccounts();
             else if (mod.default && mod.default.showNoAccounts) mod.default.showNoAccounts();
             else console.error('showNoAccounts not found in kick-account module', mod);
           });
-          break;
-        case 'KICK_SHOW_ERROR':
-          showAlert(message, "alert-danger")
-          break;
-        case 'KICK_START_WORK':
-          workStatus = true;
-          countingSendingPerMinute(message);
-          showAlert("You have started work", "alert-success")
-          document.getElementById("buttonStartWork").disabled = true
-          document.getElementById("buttonEndWork").disabled = false
-          workTimer(message["startWorkTime"])
-          break;
-        case 'KICK_END_WORK':
-          workStatus = false;
-          showAlert("Have you finished your work", "alert-success")
-          clearInterval(workTimerId);
-          clearInterval(averageSendingPerMinuteId);
-          // Stop auto messages if running
-          if (intervalSendAutoMessageId) {
-            clearInterval(intervalSendAutoMessageId);
-          }
-          if (intervalTimerSendAutoMessageId) {
-            clearInterval(intervalTimerSendAutoMessageId);
-          }
-          // Reset buttons
-          document.getElementById("buttonStartWork").disabled = false
-          document.getElementById("buttonEndWork").disabled = true
-          // Turn off auto message sending checkbox
-          const autoMessageCheckbox = document.getElementById('sendAutoMessageStatus');
-          if (autoMessageCheckbox.checked) {
-            autoMessageCheckbox.checked = false;
-          }
-          // Reset UI elements
-          document.getElementById("averageSendingPerMinute").innerText = "0.00"
-          document.getElementById("timerAutoMessage").innerText = "00:01:00"
-          document.getElementById("editAutoMessage").disabled = false;
-          // Remove auto-send highlighting from accounts
-          let accounts = document.getElementsByClassName('account');
-          for (let account of accounts) {
-            account.classList.remove("account-auto-send");
-          }
-          break;
-        case 'KICK_CRITICAL_ERROR':
-          showAlert(message, "alert-danger")
-          break;
-        default:
+        break;
+      case 'KICK_SHOW_ERROR':
+        showAlert(message, "alert-danger")
+        break;
+      case 'KICK_START_WORK':
+        workStatus = true;
+        countingSendingPerMinute(message);
+        showAlert("You have started work", "alert-success")
+        document.getElementById("buttonStartWork").disabled = true
+        document.getElementById("buttonEndWork").disabled = false
+        workTimer(message["startWorkTime"])
+        break;
+      case 'KICK_END_WORK':
+        workStatus = false;
+        showAlert("Have you finished your work", "alert-success")
+        clearInterval(workTimerId);
+        clearInterval(averageSendingPerMinuteId);
+        // Stop auto messages if running
+        if (intervalSendAutoMessageId) {
+          clearInterval(intervalSendAutoMessageId);
+        }
+        if (intervalTimerSendAutoMessageId) {
+          clearInterval(intervalTimerSendAutoMessageId);
+        }
+        // Reset buttons
+        document.getElementById("buttonStartWork").disabled = false
+        document.getElementById("buttonEndWork").disabled = true
+        // Turn off auto message sending checkbox
+        const autoMessageCheckbox = document.getElementById('sendAutoMessageStatus');
+        if (autoMessageCheckbox.checked) {
+          autoMessageCheckbox.checked = false;
+        }
+        // Reset UI elements
+        document.getElementById("averageSendingPerMinute").innerText = "0.00"
+        document.getElementById("timerAutoMessage").innerText = "00:01:00"
+        document.getElementById("editAutoMessage").disabled = false;
+        // Remove auto-send highlighting from accounts
+        let accounts = document.getElementsByClassName('account');
+        for (let account of accounts) {
+          account.classList.remove("account-auto-send");
+        }
+        break;
+      case 'KICK_CRITICAL_ERROR':
+        showAlert(message, "alert-danger")
+        break;
+      default:
           console.log("No event", event, data);
-      }
-    };
+    }
+  };
     _kickSocketInitialized = true;
   }
 

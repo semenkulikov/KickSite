@@ -30,8 +30,8 @@ function showAccounts(accounts) {
 
         // Статус
         let badgeStatus = document.createElement("span");
-        badgeStatus.className = "badge bg-success ms-2";
-        badgeStatus.innerText = "S";
+        badgeStatus.className = acc.status === 'active' ? "ms-2 text-success" : "ms-2 text-danger";
+        badgeStatus.innerHTML = acc.status === 'active' ? '✔️' : '❌';
         block.appendChild(badgeStatus);
 
         // Чекбокс
@@ -40,19 +40,21 @@ function showAccounts(accounts) {
         input.className = "account__checkbox ms-2";
         input.id = `account-${acc.id}`;
         input.value = acc.login;
+        if (acc.status !== 'active') input.disabled = true;
         block.appendChild(input);
 
-        // Клик по блоку — выделяет аккаунт
+        // Клик по блоку — выделяет аккаунт (только если активен)
         block.addEventListener("click", function (e) {
-            selectAccount(input.id);
+            if (acc.status === 'active') selectAccount(input.id);
         });
 
         accountsContainer.appendChild(block);
     });
 
-    // Автовыделение первого аккаунта
-    if (accounts.length > 0) {
-        selectAccount(`account-${accounts[0].id}`);
+    // Автовыделение первого активного аккаунта
+    const firstActive = accounts.find(a => a.status === 'active');
+    if (firstActive) {
+        selectAccount(`account-${firstActive.id}`);
     }
 }
 

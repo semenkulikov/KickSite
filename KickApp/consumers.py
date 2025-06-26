@@ -82,11 +82,21 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                     self.channel_group_name,
                     self.channel_name
                 )
-            accounts = await sync_to_async(list)(KickAccount.objects.filter(status=True).values('id', 'login'))
-            print('[KICK-WS] SEND ACCOUNTS:', accounts)
+            # Получаем все аккаунты
+            accounts = await sync_to_async(list)(KickAccount.objects.all())
+            # Проверяем валидность каждого аккаунта (асинхронно через sync_to_async)
+            checked_accounts = []
+            for acc in accounts:
+                is_valid = await sync_to_async(acc.check_kick_account_valid)()
+                checked_accounts.append({
+                    'id': acc.id,
+                    'login': acc.login,
+                    'status': acc.status
+                })
+            print('[KICK-WS] SEND ACCOUNTS:', checked_accounts)
             await self.send(text_data=json.dumps({
                 'event': 'KICK_ACCOUNTS',
-                'message': accounts
+                'message': checked_accounts
             }))
 
         elif _type == 'KICK_START_WORK':
