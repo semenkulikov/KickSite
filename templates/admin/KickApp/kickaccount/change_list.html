@@ -1,0 +1,22 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools %}
+  <div class="object-tools">
+    <ul class="object-tools">
+      <li>
+        <a href="add/" class="button btn btn-success" style="margin-right: 10px;">
+          <span class="icon-plus"></span> Добавить Kick Account
+        </a>
+      </li>
+      <li>
+        <a href="mass_import/" class="button btn btn-primary">
+          <span class="icon-upload"></span> Массовый импорт
+        </a>
+      </li>
+    </ul>
+  </div>
+{% endblock %}
+
+{% block content %}
+  {{ block.super }}
+{% endblock %} 

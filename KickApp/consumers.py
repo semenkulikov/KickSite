@@ -5,11 +5,19 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 from django.db import models
 from KickApp.models import KickAccount
+from ProxyApp.models import Proxy
 
 
-async def send_kick_message(chatbot_id: int, channel: str, message: str, token: str):
+async def send_kick_message(chatbot_id: int, channel: str, message: str, token: str, proxy_url: str = None):
     """Sends a message to a Kick chat."""
-    async with httpx.AsyncClient() as client:
+    proxies = None
+    if proxy_url:
+        proxy_url = str(proxy_url)
+        proxies = {
+            "http://": proxy_url,
+            "https://": proxy_url,
+        }
+    async with httpx.AsyncClient(proxies=proxies) as client:
         try:
             # 1. Get chatteroom ID
             api_url = f"https://kick.com/api/v2/channels/{channel}"
@@ -23,7 +31,7 @@ async def send_kick_message(chatbot_id: int, channel: str, message: str, token: 
             # 2. Send message
             send_message_url = f"https://kick.com/api/v2/messages/send/{chatteroom_id}"
             headers = {
-                'Authorization': token, # Токен уже содержит "Bearer "
+                'Authorization': f'Bearer {token}',
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
             }
@@ -122,7 +130,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
 
         while True:
             try:
-                accounts = await sync_to_async(list)(KickAccount.objects.filter(status=True).values('id', 'token'))
+                accounts = await sync_to_async(list)(KickAccount.objects.filter(status=True).values('id', 'token', 'proxy_id'))
                 if not accounts:
                     await self.send(text_data=json.dumps({
                         'type': 'KICK_ERROR',
@@ -133,7 +141,12 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 print(f"Starting message sending job for channel {self.channel_group_name} with {len(accounts)} accounts.")
                 
                 for account in accounts:
-                    await send_kick_message(account['id'], self.channel_group_name, message, account['token'])
+                    proxy_url = None
+                    if account.get('proxy_id'):
+                        proxy = await sync_to_async(Proxy.objects.filter(id=account['proxy_id']).first)()
+                        if proxy and getattr(proxy, 'url', None):
+                            proxy_url = str(proxy.url)
+                    await send_kick_message(account['id'], self.channel_group_name, message, account['token'], proxy_url or "")
                     await asyncio.sleep(2) # Задержка между отправкой с разных аккаунтов
 
                 await self.send(text_data=json.dumps({

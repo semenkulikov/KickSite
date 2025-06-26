@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 import requests
+from ProxyApp.models import Proxy
 
 # Create your models here.
 
@@ -18,15 +19,22 @@ class KickAccount(models.Model):
         return self.login
 
     def check_kick_account_valid(self):
-        if self.session_token:
-            cookies = {'__Secure-next-auth.session-token': str(self.session_token)}
-            resp = requests.get('https://kick.com/api/v1/user/me', cookies=cookies, timeout=5)
-        else:
-            token_str = str(self.token)
-            token = token_str.split('|')[0] if '|' in token_str else token_str
-            headers = {'Authorization': token}
-            resp = requests.get('https://kick.com/api/v1/user/me', headers=headers, timeout=5)
+        proxies = None
+        proxy_url = getattr(self.proxy, 'url', None)
+        proxy_failed = False
+        if proxy_url:
+            proxies = {
+                "http": proxy_url,
+                "https": proxy_url,
+            }
         try:
+            if self.session_token:
+                cookies = {'__Secure-next-auth.session-token': str(self.session_token)}
+                resp = requests.get('https://kick.com/api/v1/user/me', cookies=cookies, timeout=5, proxies=proxies)
+            else:
+                token = str(self.token)
+                headers = {'Authorization': f'Bearer {token}'}
+                resp = requests.get('https://kick.com/api/v1/user/me', headers=headers, timeout=5, proxies=proxies)
             if resp.status_code == 200:
                 if self.status != 'active':
                     self.status = 'active'
@@ -38,7 +46,37 @@ class KickAccount(models.Model):
                     self.save(update_fields=['status'])
                 return False
         except Exception:
-            if self.status != 'inactive':
-                self.status = 'inactive'
-                self.save(update_fields=['status'])
-            return False
+            # Если был прокси — помечаем его как невалидный, но пробуем без прокси
+            proxy_obj = self.proxy
+            if proxy_obj:
+                proxy_obj.status = False
+                proxy_obj.save(update_fields=['status'])
+                # Пробуем ещё раз без прокси
+                try:
+                    if self.session_token:
+                        cookies = {'__Secure-next-auth.session-token': str(self.session_token)}
+                        resp = requests.get('https://kick.com/api/v1/user/me', cookies=cookies, timeout=5)
+                    else:
+                        token = str(self.token)
+                        headers = {'Authorization': f'Bearer {token}'}
+                        resp = requests.get('https://kick.com/api/v1/user/me', headers=headers, timeout=5)
+                    if resp.status_code == 200:
+                        if self.status != 'active':
+                            self.status = 'active'
+                            self.save(update_fields=['status'])
+                        return True
+                    else:
+                        if self.status != 'inactive':
+                            self.status = 'inactive'
+                            self.save(update_fields=['status'])
+                        return False
+                except Exception:
+                    if self.status != 'inactive':
+                        self.status = 'inactive'
+                        self.save(update_fields=['status'])
+                    return False
+            else:
+                if self.status != 'inactive':
+                    self.status = 'inactive'
+                    self.save(update_fields=['status'])
+                return False
