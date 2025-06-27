@@ -6,6 +6,9 @@ from ProxyApp.models import Proxy
 # Create your models here.
 
 class KickAccount(models.Model):
+    """
+    Модель аккаунта Kick
+    """
     login = models.CharField(max_length=100, unique=True)
     token = models.CharField(max_length=200)
     proxy = models.ForeignKey('ProxyApp.Proxy', null=True, blank=True, on_delete=models.SET_NULL)
