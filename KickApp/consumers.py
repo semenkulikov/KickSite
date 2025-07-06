@@ -8,8 +8,34 @@ from KickApp.models import KickAccount
 from ProxyApp.models import Proxy
 
 
-async def send_kick_message(chatbot_id: int, channel: str, message: str, token: str, proxy_url: str = None):
-    """Sends a message to a Kick chat."""
+async def send_kick_message(chatbot_id: int, channel: str, message: str, token: str, proxy_url: str = None, session_token: str = None):
+    """Sends a message to a Kick chat using Playwright (with httpx fallback)."""
+    try:
+        # Пробуем через Playwright
+        from .playwright_utils import send_kick_message_playwright
+        
+        success = await send_kick_message_playwright(
+            channel=channel,
+            message=message,
+            token=token,
+            session_token=session_token,
+            proxy_url=proxy_url
+        )
+        
+        if success:
+            print(f"Message sent successfully from account {chatbot_id} to {channel} via Playwright")
+            return True
+        else:
+            print(f"Failed to send message from account {chatbot_id} to {channel} via Playwright, trying httpx fallback")
+            return await send_kick_message_httpx(chatbot_id, channel, message, token, proxy_url)
+            
+    except Exception as e:
+        print(f"Playwright message sending failed for account {chatbot_id}: {e}, trying httpx fallback")
+        return await send_kick_message_httpx(chatbot_id, channel, message, token, proxy_url)
+
+
+async def send_kick_message_httpx(chatbot_id: int, channel: str, message: str, token: str, proxy_url: str = None):
+    """Fallback method: Sends a message to a Kick chat using httpx (may not work due to Cloudflare)."""
     proxies = None
     if proxy_url:
         proxy_url = str(proxy_url)
@@ -26,7 +52,7 @@ async def send_kick_message(chatbot_id: int, channel: str, message: str, token: 
             chatteroom_id = response.json().get("chatroom", {}).get("id")
             if not chatteroom_id:
                 print(f"Could not find chatteroom ID for channel: {channel}")
-                return
+                return False
 
             # 2. Send message
             send_message_url = f"https://kick.com/api/v2/messages/send/{chatteroom_id}"
@@ -43,12 +69,15 @@ async def send_kick_message(chatbot_id: int, channel: str, message: str, token: 
             response = await client.post(send_message_url, headers=headers, json=payload, timeout=10)
             response.raise_for_status()
             
-            print(f"Message sent successfully from account {chatbot_id} to {channel}")
+            print(f"Message sent successfully from account {chatbot_id} to {channel} via httpx")
+            return True
 
         except httpx.HTTPStatusError as e:
             print(f"HTTP error sending message from {chatbot_id} to {channel}: {e.response.status_code} - {e.response.text}")
+            return False
         except Exception as e:
             print(f"An error occurred sending message from {chatbot_id} to {channel}: {e}")
+            return False
 
 
 class KickAppChatWs(AsyncWebsocketConsumer):
@@ -123,6 +152,62 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 self.work_task = None
                 await self.send(text_data=json.dumps({'type': 'KICK_WORK_STOPPED'}))
 
+        elif _type == 'KICK_SEND_MESSAGE':
+            # Обработка отправки одиночного сообщения
+            message_data = json_data.get('message', {})
+            channel = message_data.get('channel')
+            message_text = message_data.get('message')
+            account_login = message_data.get('account')
+            
+            if not all([channel, message_text, account_login]):
+                await self.send(text_data=json.dumps({
+                    'type': 'KICK_ERROR',
+                    'message': 'Missing required fields for message sending'
+                }))
+                return
+            
+            try:
+                # Находим аккаунт по логину
+                account = await sync_to_async(KickAccount.objects.filter(login=account_login).first)()
+                if not account:
+                    await self.send(text_data=json.dumps({
+                        'type': 'KICK_ERROR',
+                        'message': f'Account {account_login} not found'
+                    }))
+                    return
+                
+                # Получаем данные прокси
+                proxy_url = None
+                if account.proxy:
+                    proxy_url = getattr(account.proxy, 'url', None)
+                
+                # Отправляем сообщение
+                success = await send_kick_message(
+                    account.id,
+                    channel,
+                    message_text,
+                    account.token,
+                    proxy_url,
+                    account.session_token
+                )
+                
+                if success:
+                    await self.send(text_data=json.dumps({
+                        'type': 'KICK_MESSAGE_SENT',
+                        'message': f'Message sent successfully from {account_login} to {channel}'
+                    }))
+                else:
+                    await self.send(text_data=json.dumps({
+                        'type': 'KICK_ERROR',
+                        'message': f'Failed to send message from {account_login} to {channel}'
+                    }))
+                    
+            except Exception as e:
+                await self.send(text_data=json.dumps({
+                    'type': 'KICK_ERROR',
+                    'message': f'Error sending message: {str(e)}'
+                }))
+
     async def start_work(self, message: str, frequency: int):
         if not self.channel_group_name:
             print("Cannot start work without a channel selected.")
@@ -146,7 +231,19 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                         proxy = await sync_to_async(Proxy.objects.filter(id=account['proxy_id']).first)()
                         if proxy and getattr(proxy, 'url', None):
                             proxy_url = str(proxy.url)
-                    await send_kick_message(account['id'], self.channel_group_name, message, account['token'], proxy_url or "")
+                    
+                    # Получаем session_token для аккаунта
+                    account_obj = await sync_to_async(KickAccount.objects.filter(id=account['id']).first)()
+                    session_token = getattr(account_obj, 'session_token', None) if account_obj else None
+                    
+                    await send_kick_message(
+                        account['id'], 
+                        self.channel_group_name, 
+                        message, 
+                        account['token'], 
+                        proxy_url or "", 
+                        session_token
+                    )
                     await asyncio.sleep(2) # Задержка между отправкой с разных аккаунтов
 
                 await self.send(text_data=json.dumps({

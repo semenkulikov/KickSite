@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 import requests
+import asyncio
 from ProxyApp.models import Proxy
 
 # Create your models here.
@@ -21,9 +22,51 @@ class KickAccount(models.Model):
         return self.login
 
     def check_kick_account_valid(self):
+        """
+        Проверка валидности аккаунта Kick через Playwright
+        Fallback на requests если Playwright не работает
+        """
+        try:
+            # Пробуем через Playwright
+            from .playwright_utils import validate_kick_account_playwright
+            
+            proxy_url = getattr(self.proxy, 'url', None)
+            token = str(self.token) if self.token else None
+            session_token = str(self.session_token) if self.session_token else None
+            
+            # Запускаем async функцию в sync контексте
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            is_valid = loop.run_until_complete(
+                validate_kick_account_playwright(token, session_token, proxy_url)
+            )
+            
+            if is_valid:
+                if self.status != 'active':
+                    self.status = 'active'
+                    self.save(update_fields=['status'])
+                return True
+            else:
+                if self.status != 'inactive':
+                    self.status = 'inactive'
+                    self.save(update_fields=['status'])
+                return False
+                
+        except Exception as e:
+            # Fallback на старый метод через requests
+            print(f"Playwright validation failed, falling back to requests: {e}")
+            return self._check_kick_account_valid_requests()
+    
+    def _check_kick_account_valid_requests(self):
+        """
+        Fallback метод валидации через requests (может не работать из-за Cloudflare)
+        """
         proxies = None
         proxy_url = getattr(self.proxy, 'url', None)
-        proxy_failed = False
         if proxy_url:
             proxies = {
                 "http": proxy_url,
@@ -51,8 +94,6 @@ class KickAccount(models.Model):
             # Если был прокси — помечаем его как невалидный, но пробуем без прокси
             proxy_obj = self.proxy
             if proxy_obj:
-                proxy_obj.status = False
-                proxy_obj.save(update_fields=['status'])
                 # Пробуем ещё раз без прокси
                 try:
                     if self.session_token:
