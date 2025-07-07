@@ -67,6 +67,17 @@
     </div>
 </template>
 
+<!-- Уведомление о статусе работы -->
+<div id="workStatusNotification" class="alert alert-success alert-dismissible fade" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px; display: none;" role="alert">
+    <strong>🚀 Работа запущена!</strong>
+    <div class="mt-2">
+        <small>✅ Аккаунты активны</small><br>
+        <small>📊 Сообщения отправляются</small><br>
+        <small>⏱️ Время работы: <span id="workTimeCounter">00:00:00</span></small>
+    </div>
+    <button type="button" class="btn-close" onclick="hideWorkNotification()" aria-label="Close"></button>
+</div>
+
 {% include 'KickApp/channel-modal.html' %}
 {% include 'KickApp/auto-messages-modal.html' %}
 

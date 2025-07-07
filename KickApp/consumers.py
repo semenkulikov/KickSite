@@ -144,13 +144,24 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             message = json_data.get('message', 'Hello from the bot!')
             frequency = int(json_data.get('frequency', 60))
             self.work_task = asyncio.create_task(self.start_work(message, frequency))
-            await self.send(text_data=json.dumps({'type': 'KICK_WORK_STARTED'}))
+            
+            # Отправляем событие о начале работы
+            import time
+            await self.send(text_data=json.dumps({
+                'event': 'KICK_START_WORK',
+                'message': {
+                    'startWorkTime': time.time() * 1000  # время в миллисекундах
+                }
+            }))
 
         elif _type == 'KICK_END_WORK':
             if self.work_task:
                 self.work_task.cancel()
                 self.work_task = None
-                await self.send(text_data=json.dumps({'type': 'KICK_WORK_STOPPED'}))
+                await self.send(text_data=json.dumps({
+                    'event': 'KICK_END_WORK',
+                    'message': 'Work stopped'
+                }))
 
         elif _type == 'KICK_SEND_MESSAGE':
             # Обработка отправки одиночного сообщения

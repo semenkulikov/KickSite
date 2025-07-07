@@ -2,6 +2,7 @@ import {getKickChannel} from "./kick-channel-db";
 import {changeViewChannel} from "./kick-channel";
 import {loadAutoMessagesData} from "./kick-auto-messages";
 import {getKickSocket} from "./kick-ws";
+import {updateChatButtonsState} from "./kick-work";
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log("DOM loaded")
@@ -29,6 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAutoMessagesData()
 
   $("#inputMessage").focus();
+
+  // Изначально деактивируем кнопки Chat и Auto Messages до загрузки аккаунтов
+  updateChatButtonsState();
 
   // После загрузки страницы, если канал уже выбран — сразу отправляем событие на ws
   let channel = window.selectedChannel;
@@ -62,11 +66,5 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('[KICK-WS] Auto-sent KICK_SELECT_CHANNEL for already selected channel:', channel);
   }
 
-  // Fallback: если через 2 секунды всё ещё спиннер — показать showNoAccounts
-  setTimeout(() => {
-    const acc = document.getElementById('accounts');
-    if (acc && acc.innerText.includes('Uploading accounts')) {
-      if (window.showNoAccounts) window.showNoAccounts();
-    }
-  }, 2000);
+  // Fallback удален - теперь используется правильная логика обновления кнопок в showAccounts
 });

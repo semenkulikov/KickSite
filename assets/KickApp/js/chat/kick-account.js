@@ -1,19 +1,20 @@
 import {getKickSocket, awaitAccountsPingStatus} from "./kick-ws";
 import {showAlert} from "./alert";
+import {updateChatButtonsState, updateWorkButtonsState} from "./kick-work";
 
 const kickAccounts = document.getElementsByClassName('account__checkbox');
 
 function showAccounts(accounts) {
     console.log('[showAccounts] called with', accounts);
     const accountsContainer = document.getElementById("accounts");
-    document.getElementById("buttonStartWork").disabled = false;
     accountsContainer.innerHTML = "";
 
     if (!accounts.length) return;
 
     accounts.forEach((acc, idx) => {
         let block = document.createElement("div");
-        block.className = "account-block d-flex align-items-center gap-2 mb-2 p-2 rounded bg-dark";
+        block.className = "account-block account d-flex align-items-center gap-2 mb-2 p-2 rounded bg-dark";
+        block.setAttribute("data-account-status", acc.status);
 
         // Аватар-заглушка (можно заменить на реальный)
         let avatar = document.createElement("div");
@@ -45,7 +46,10 @@ function showAccounts(accounts) {
 
         // Клик по блоку — выделяет аккаунт (только если активен)
         block.addEventListener("click", function (e) {
-            if (acc.status === 'active') selectAccount(input.id);
+            if (acc.status === 'active') {
+                selectAccount(input.id);
+                updateChatButtonsState();
+            }
         });
 
         accountsContainer.appendChild(block);
@@ -56,6 +60,9 @@ function showAccounts(accounts) {
     if (firstActive) {
         selectAccount(`account-${firstActive.id}`);
     }
+    
+    // Обновляем состояние кнопок после загрузки аккаунтов
+    updateWorkButtonsState();
 }
 
 function awaitAccounts() {
@@ -80,6 +87,7 @@ function selectAccount(id) {
             kickAccounts[i].parentNode.parentNode.classList.remove("account-checked");
         }
     }
+    updateChatButtonsState();
 }
 
 function showNoAccounts(){
@@ -91,6 +99,9 @@ function showNoAccounts(){
   message.className = "w-50 text-center alert alert-warning";
   message.innerText = "You don't have any assigned accounts. Contact the administrator"
   accountsContainer.appendChild(message)
+  
+  // Обновляем состояние кнопок когда нет аккаунтов
+  updateWorkButtonsState();
 }
 
 window.showAccounts = showAccounts;
@@ -98,4 +109,4 @@ window.selectAccount = selectAccount;
 window.showNoAccounts = showNoAccounts;
 window.awaitAccounts = awaitAccounts;
 
-export { showAccounts, showNoAccounts, awaitAccounts };
+export { showAccounts, showNoAccounts, awaitAccounts, selectAccount };

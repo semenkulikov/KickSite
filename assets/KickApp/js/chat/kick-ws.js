@@ -1,12 +1,14 @@
 console.log('kick-ws.js LOADED');
 import {showAccounts, awaitAccounts, showNoAccounts} from "./kick-account";
 import {showAlert} from "./alert";
-import {workTimer, workTimerId} from "./kick-work";
+import {workTimer, workTimerId, updateWorkButtonsState, updateChatButtonsState, showWorkNotification, hideWorkNotification} from "./kick-work";
 import {countingSendingPerMinute, averageSendingPerMinuteId} from "./kick-send"
 import {intervalSendAutoMessageId, intervalTimerSendAutoMessageId} from "./kick-auto-messages"
 
 let _kickSocket = null;
 let _kickSocketInitialized = false;
+let awaitAccountsPingStatus = false;
+let workStatus = false;
 
 function getKickSocket() {
   if (_kickSocket) return _kickSocket;
@@ -15,8 +17,6 @@ const loc = window.location;
   let wsStart = loc.protocol === 'https:' ? 'wss://' : 'ws://';
 let endpoint = wsStart + loc.host + '/ws-kick/chat';
 const socket = new WebSocket(endpoint);
-let awaitAccountsPingStatus;
-let workStatus = false;
 
   // === DEBUG LOGGING ===
   console.log('[KICK-WS] init kick-ws.js');
@@ -67,6 +67,8 @@ let workStatus = false;
             if (mod.showAccounts) mod.showAccounts(accountsList);
             else if (mod.default && mod.default.showAccounts) mod.default.showAccounts(accountsList);
             else console.error('showAccounts not found in kick-account module', mod);
+            // Обновляем состояние кнопок после загрузки аккаунтов
+            setTimeout(() => updateWorkButtonsState(), 100);
           });
           awaitAccountsPingStatus = false;
           break;
@@ -98,16 +100,19 @@ let workStatus = false;
         showAlert(message, "alert-danger")
         break;
       case 'KICK_START_WORK':
+        console.log('[KICK-WS] KICK_START_WORK received, setting workStatus = true');
         workStatus = true;
         countingSendingPerMinute(message);
         showAlert("You have started work", "alert-success")
-        document.getElementById("buttonStartWork").disabled = true
-        document.getElementById("buttonEndWork").disabled = false
+        showWorkNotification(); // Показываем уведомление о запуске работы
+        updateWorkButtonsState();
+        updateChatButtonsState();
         workTimer(message["startWorkTime"])
         break;
       case 'KICK_END_WORK':
         workStatus = false;
         showAlert("Have you finished your work", "alert-success")
+        hideWorkNotification(); // Скрываем уведомление о работе
         clearInterval(workTimerId);
         clearInterval(averageSendingPerMinuteId);
         // Stop auto messages if running
@@ -117,9 +122,6 @@ let workStatus = false;
         if (intervalTimerSendAutoMessageId) {
           clearInterval(intervalTimerSendAutoMessageId);
         }
-        // Reset buttons
-        document.getElementById("buttonStartWork").disabled = false
-        document.getElementById("buttonEndWork").disabled = true
         // Turn off auto message sending checkbox
         const autoMessageCheckbox = document.getElementById('sendAutoMessageStatus');
         if (autoMessageCheckbox.checked) {
@@ -128,12 +130,13 @@ let workStatus = false;
         // Reset UI elements
         document.getElementById("averageSendingPerMinute").innerText = "0.00"
         document.getElementById("timerAutoMessage").innerText = "00:01:00"
-        document.getElementById("editAutoMessage").disabled = false;
         // Remove auto-send highlighting from accounts
         let accounts = document.getElementsByClassName('account');
         for (let account of accounts) {
           account.classList.remove("account-auto-send");
         }
+        // Update button states
+        updateWorkButtonsState();
         break;
       case 'KICK_CRITICAL_ERROR':
         showAlert(message, "alert-danger")
@@ -173,4 +176,4 @@ let workStatus = false;
   return socket;
 }
 
-export {getKickSocket};
+export {getKickSocket, awaitAccountsPingStatus, workStatus};
