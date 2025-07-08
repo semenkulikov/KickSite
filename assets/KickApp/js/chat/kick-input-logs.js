@@ -3,12 +3,18 @@ function addMessageToLogs(data) {
 
     let message = `${data.account}${data.auto ? '(auto)' : ''}: ${data.message}`
     console.log(message)
-    if (textAreaInputLogs.value !== "") {
-        textAreaInputLogs.value =  textAreaInputLogs.value + '\n' + message;
+    
+    // Проверяем, существует ли элемент перед обращением к его свойствам
+    if (textAreaInputLogs) {
+        if (textAreaInputLogs.value !== "") {
+            textAreaInputLogs.value =  textAreaInputLogs.value + '\n' + message;
+        } else {
+            textAreaInputLogs.value = message;
+        }
+        textAreaInputLogs.scrollTop = textAreaInputLogs.scrollHeight;
     } else {
-        textAreaInputLogs.value = message;
+        console.log('[addMessageToLogs] Element with id "inputLogs" not found in DOM');
     }
-    textAreaInputLogs.scrollTop = textAreaInputLogs.scrollHeight;
 }
 
 export {addMessageToLogs}

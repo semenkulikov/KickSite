@@ -41,6 +41,7 @@ function showAccounts(accounts) {
         input.className = "account__checkbox ms-2";
         input.id = `account-${acc.id}`;
         input.value = acc.login;
+        input.setAttribute("data-account-selected", "false");
         if (acc.status !== 'active') input.disabled = true;
         block.appendChild(input);
 
@@ -55,12 +56,6 @@ function showAccounts(accounts) {
         accountsContainer.appendChild(block);
     });
 
-    // Автовыделение первого активного аккаунта
-    const firstActive = accounts.find(a => a.status === 'active');
-    if (firstActive) {
-        selectAccount(`account-${firstActive.id}`);
-    }
-    
     // Обновляем состояние кнопок после загрузки аккаунтов
     updateWorkButtonsState();
 }
@@ -78,15 +73,26 @@ function awaitAccounts() {
 }
 
 function selectAccount(id) {
-    for (let i = 0; i < kickAccounts.length; i++) {
-        if (kickAccounts[i].id === id) {
-            kickAccounts[i].setAttribute("data-account-selected", "true")
-            kickAccounts[i].parentNode.parentNode.classList.add("account-checked");
-        } else {
-            kickAccounts[i].setAttribute("data-account-selected", "false")
-            kickAccounts[i].parentNode.parentNode.classList.remove("account-checked");
-        }
+    const clickedAccount = document.getElementById(id);
+    if (!clickedAccount) return;
+    
+    // Переключаем состояние выбранного аккаунта
+    const isCurrentlySelected = clickedAccount.getAttribute("data-account-selected") === "true";
+    const newState = !isCurrentlySelected;
+    
+    console.log(`[selectAccount] Toggling account ${id}: ${isCurrentlySelected} -> ${newState}`);
+    
+    // Обновляем состояние для кликнутого аккаунта
+    clickedAccount.setAttribute("data-account-selected", newState ? "true" : "false");
+    clickedAccount.checked = newState;
+    
+    if (newState) {
+        clickedAccount.parentNode.classList.add("account-checked");
+    } else {
+        clickedAccount.parentNode.classList.remove("account-checked");
     }
+    
+    // Обновляем состояние кнопок
     updateChatButtonsState();
 }
 

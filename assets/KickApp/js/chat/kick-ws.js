@@ -138,6 +138,12 @@ const socket = new WebSocket(endpoint);
         // Update button states
         updateWorkButtonsState();
         break;
+      case 'KICK_MESSAGE_SENT':
+        showAlert(message, "alert-success")
+        break;
+      case 'KICK_ERROR':
+        showAlert(message, "alert-danger")
+        break;
       case 'KICK_CRITICAL_ERROR':
         showAlert(message, "alert-danger")
         break;

@@ -70,6 +70,10 @@ document.getElementById('sendAutoMessageStatus').addEventListener('click', funct
               const selectedAccounts = shuffled.slice(0, 1);
 
               $.each(selectedAccounts, function (index, value) {
+                if (!value || !value.value) {
+                  console.error('Invalid account value:', value);
+                  return; // skip this iteration
+                }
                 let accountLogin = value.value
                 let data = {
                     "channel": channel,
@@ -79,7 +83,7 @@ document.getElementById('sendAutoMessageStatus').addEventListener('click', funct
                 }
                 addMessageToLogs(data);
                 getKickSocket().send(JSON.stringify({
-                    "event": "KICK_SEND_MESSAGE",
+                    "type": "KICK_SEND_MESSAGE",
                     "message": data,
                 }));
               });

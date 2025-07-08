@@ -30,25 +30,42 @@ $('#inputMessage').on('keydown', function(event) {
 function kickSend() {
   let data = checkingConditions()
   if (data) {
-    const inputMessageElement = document.getElementById('inputMessage');
-    const selectedAccount = document.querySelectorAll('[data-account-selected="true"]')[0];
+    const selectedAccounts = document.querySelectorAll('[data-account-selected="true"]');
+    console.log(`[kickSend] Found ${selectedAccounts.length} selected accounts`);
 
     if(workStatus) {
-      messagesSent++;
-      addMessageToLogs(data)
-      getKickSocket().send(JSON.stringify({
-        "event": "KICK_SEND_MESSAGE",
-        "message": data,
-      }));
+      // Отправляем сообщения со всех выбранных аккаунтов
+      selectedAccounts.forEach((accountElement, index) => {
+        const accountLogin = accountElement.value;
+        const messageData = {
+          "channel": data.channel,
+          "account": accountLogin,
+          "message": data.message,
+          "auto": false
+        };
+        
+        console.log(`[kickSend] Sending message from account ${index + 1}/${selectedAccounts.length}: ${accountLogin}`);
+        
+        messagesSent++;
+        addMessageToLogs(messageData);
+        
+        getKickSocket().send(JSON.stringify({
+          "type": "KICK_SEND_MESSAGE",
+          "message": messageData,
+        }));
+      });
 
-      let currentAccount = document.querySelector(`[id=${selectedAccount.id}]`);
-      let currentIndex = ([...document.querySelectorAll('[data-account-selected="true"]')].indexOf(currentAccount) + 1) % document.querySelectorAll('[data-account-selected="true"]').length;
-      selectAccount(document.querySelectorAll('[data-account-selected="true"]')[currentIndex].id);
-      inputMessageElement.value = "";
+      // Очищаем поле ввода только если элемент существует
+      const inputMessageElement = document.getElementById('inputMessage');
+      if (inputMessageElement) {
+        inputMessageElement.value = "";
+      }
     }
     else {
       showAlert("You haven't started work. Click on the \"Start work\" button", "alert-danger")
     }
+  } else {
+    console.log('[kickSend] checkingConditions returned false - some validation failed');
   }
 }
 
@@ -78,21 +95,44 @@ function countingSendingPerMinute(data) {
 }
 
 function checkingConditions() {
+  console.log('[checkingConditions] Starting validation...');
+  
   let inputMessage = checkInputMessage()
   let selectedChannel = checkSelectedChannel()
-  let selectedAccount = checkSelectedAccount()
-
-  if (selectedChannel && inputMessage && selectedAccount) return {
-    "channel": selectedChannel,
-    "account": selectedAccount,
-    "message": inputMessage,
-    "auto": false
+  let hasSelectedAccounts = checkSelectedAccount()
+  
+  let results = {
+    inputMessage: inputMessage,
+    selectedChannel: selectedChannel,
+    selectedAccount: hasSelectedAccounts
   }
-  return false
+  
+  console.log('[checkingConditions] Results:', results);
+  
+  if (inputMessage && selectedChannel && hasSelectedAccounts) {
+    console.log('[checkingConditions] All validations passed');
+    return {
+      "channel": selectedChannel,
+      "message": inputMessage,
+    }
+  }
+  else {
+    console.log('[checkingConditions] Some validation failed');
+    return false
+  }
 }
 
 function checkInputMessage(){
-  const inputValue = document.getElementById('inputMessage').value;
+  console.log('[checkInputMessage] Checking input message...');
+  const inputElement = document.getElementById('inputMessage');
+  if (!inputElement) {
+    console.error('[checkInputMessage] Input element not found');
+    showAlert("Input message element not found!", "alert-danger")
+    return false
+  }
+  
+  const inputValue = inputElement.value;
+  console.log('[checkInputMessage] Input value:', inputValue);
   if (inputValue && inputValue.trim() !== "") {
     return inputValue
   }
@@ -101,21 +141,38 @@ function checkInputMessage(){
 }
 
 function checkSelectedChannel() {
+  console.log('[checkSelectedChannel] Checking selected channel...');
   const elementSelectedChannel = document.getElementById("selectedChannel");
+  if (!elementSelectedChannel) {
+    console.error('[checkSelectedChannel] Selected channel element not found');
+    showAlert("Selected channel element not found!", "alert-danger")
+    return false
+  }
+  
+  console.log('[checkSelectedChannel] Channel element dataset:', elementSelectedChannel.dataset);
   if (elementSelectedChannel.dataset.status === "selected") {
-    return elementSelectedChannel.innerText
+    const channelName = elementSelectedChannel.innerText;
+    console.log('[checkSelectedChannel] Selected channel:', channelName);
+    return channelName
   }
   showAlert("You have not selected a channel!", "alert-danger")
   return false
 }
 
 function checkSelectedAccount() {
-  const selectedAccount = document.querySelectorAll('[data-account-selected="true"]')[0];
-  if (selectedAccount) {
-    return selectedAccount.value;
+  console.log('[checkSelectedAccount] Checking selected account...');
+  
+  const selectedAccounts = document.querySelectorAll('[data-account-selected="true"]');
+  console.log(`[checkSelectedAccount] Found ${selectedAccounts.length} selected accounts`);
+  
+  if (selectedAccounts.length === 0) {
+    showAlert("You haven't selected an account. Select an account.", "alert-danger");
+    console.log('[checkSelectedAccount] No accounts selected');
+    return false;
   }
-  showAlert("You have not selected any account!", "alert-danger")
-  return false
+  
+  console.log(`[checkSelectedAccount] ${selectedAccounts.length} account(s) selected`);
+  return true;
 }
 
 export {countingSendingPerMinute, averageSendingPerMinuteId}

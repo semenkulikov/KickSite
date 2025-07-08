@@ -15,7 +15,7 @@ class KickPlaywrightClient:
     
     async def validate_account(self, token: Optional[str] = None, session_token: Optional[str] = None, proxy_url: Optional[str] = None) -> bool:
         """
-        Валидация аккаунта Kick через Playwright
+        Проверка валидности аккаунта Kick через Playwright
         
         Args:
             token: Bearer token аккаунта
@@ -23,7 +23,7 @@ class KickPlaywrightClient:
             proxy_url: URL прокси (только HTTP/HTTPS)
             
         Returns:
-            bool: True если аккаунт валидный, False если нет
+            bool: True если аккаунт валиден, False если нет
         """
         try:
             async with async_playwright() as p:
@@ -66,55 +66,76 @@ class KickPlaywrightClient:
                         'httpOnly': True
                     }])
                 
-                if token:
-                    # Добавляем Authorization header через CDP
-                    await page.set_extra_http_headers({
-                        'Authorization': f'Bearer {token}'
-                    })
+                # Устанавливаем заголовки
+                headers = {
+                    'Accept': 'application/json, text/plain, */*',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Content-Type': 'application/json'
+                }
                 
-                # Переходим на главную страницу Kick
+                if token:
+                    headers['Authorization'] = f'Bearer {token}'
+                
+                await page.set_extra_http_headers(headers)
+                
+                # Проверяем валидность через API эндпоинты
                 try:
-                    await page.goto('https://kick.com', timeout=self.timeout)
-                    await page.wait_for_load_state('networkidle', timeout=5000)
+                    # Пробуем разные API эндпоинты для валидации
+                    api_endpoints = [
+                        'https://kick.com/api/v1/user',
+                        'https://kick.com/api/v1/user/me',
+                        'https://kick.com/api/v2/user/me'
+                    ]
                     
-                    # Проверяем, залогинены ли мы
-                    # Ищем элементы, которые есть только у залогиненных пользователей
+                    for api_url in api_endpoints:
+                        try:
+                            response = await page.goto(api_url, timeout=self.timeout, wait_until='networkidle')
+                            
+                            if response and response.status == 200:
+                                # Проверяем, что ответ содержит данные пользователя
+                                content = await page.content()
+                                if 'username' in content.lower() or 'user_id' in content.lower() or '"id"' in content:
+                                    await browser.close()
+                                    logger.debug(f"Account validation successful via {api_url}")
+                                    return True
+                        except Exception as e:
+                            logger.debug(f"Failed to validate via {api_url}: {e}")
+                            continue
                     
-                    # 1. Проверяем наличие кнопки "Sign in" или "Login" - если есть, значит не залогинены
-                    login_button = await page.locator('a[href*="login"], button:has-text("Sign in"), button:has-text("Login"), a:has-text("Sign in"), a:has-text("Login")').count()
-                    if login_button > 0:
-                        print(f"DEBUG: Found login button, user not logged in")
-                        await browser.close()
-                        return False
+                    # Если API не работает, пробуем через основную страницу
+                    response = await page.goto('https://kick.com/', timeout=self.timeout, wait_until='networkidle')
                     
-                    # 2. Проверяем наличие элементов залогиненного пользователя
-                    # Аватар пользователя, меню профиля, кнопка "Go Live" и т.д.
-                    user_elements = await page.locator('[data-testid="user-menu"], .user-menu, .avatar, .profile-avatar, button:has-text("Go Live"), [data-testid="go-live-button"]').count()
-                    if user_elements > 0:
-                        print(f"DEBUG: Found user elements ({user_elements}), user is logged in")
-                        await browser.close()
-                        return True
+                    if response and response.status == 200:
+                        # Ждем загрузки страницы
+                        await page.wait_for_timeout(2000)
+                        
+                        # Проверяем наличие элементов, указывающих на авторизацию
+                        auth_indicators = [
+                            '[data-testid="user-menu"]',
+                            '.user-menu',
+                            '.avatar',
+                            '.profile-dropdown',
+                            'button[aria-label*="profile"]',
+                            'a[href*="/dashboard"]',
+                            'a[href*="/settings"]'
+                        ]
+                        
+                        for indicator in auth_indicators:
+                            try:
+                                element = await page.wait_for_selector(indicator, timeout=3000)
+                                if element and await element.is_visible():
+                                    await browser.close()
+                                    logger.debug("Account validation successful via page elements")
+                                    return True
+                            except:
+                                continue
                     
-                    # 3. Проверяем URL - если нас редиректнуло на страницу входа
-                    current_url = page.url
-                    if 'login' in current_url.lower() or 'auth' in current_url.lower() or 'signin' in current_url.lower():
-                        print(f"DEBUG: Redirected to login page: {current_url}")
-                        await browser.close()
-                        return False
-                    
-                    # 4. Проверяем наличие любых элементов с текстом пользователя
-                    page_content = await page.content()
-                    if 'dashboard' in page_content.lower() or 'profile' in page_content.lower():
-                        print(f"DEBUG: Found user-related content")
-                        await browser.close()
-                        return True
-                    
-                    print(f"DEBUG: No clear indication of login status, assuming not logged in")
                     await browser.close()
+                    logger.debug("Account validation failed - no valid indicators found")
                     return False
                     
                 except PlaywrightTimeoutError:
-                    logger.warning("Timeout while validating account")
+                    logger.warning("Timeout during account validation")
                     await browser.close()
                     return False
                     
@@ -146,7 +167,9 @@ class KickPlaywrightClient:
                         '--disable-web-security',
                         '--disable-features=VizDisplayCompositor',
                         '--no-sandbox',
-                        '--disable-dev-shm-usage'
+                        '--disable-dev-shm-usage',
+                        '--disable-gpu',
+                        '--disable-extensions'
                     ]
                 }
                 
@@ -161,7 +184,8 @@ class KickPlaywrightClient:
                 
                 browser = await p.chromium.launch(**browser_options)
                 context = await browser.new_context(
-                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    viewport={'width': 1920, 'height': 1080}
                 )
                 
                 page = await context.new_page()
@@ -177,30 +201,75 @@ class KickPlaywrightClient:
                         'httpOnly': True
                     }])
                 
+                # Устанавливаем дополнительные заголовки
+                headers = {
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'DNT': '1',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1'
+                }
+                
                 if token:
-                    # Добавляем Authorization header через CDP
-                    await page.set_extra_http_headers({
-                        'Authorization': f'Bearer {token}'
-                    })
+                    headers['Authorization'] = f'Bearer {token}'
+                
+                await page.set_extra_http_headers(headers)
                 
                 # Переходим на страницу канала
                 try:
-                    await page.goto(f'https://kick.com/{channel}', timeout=self.timeout)
-                    await page.wait_for_load_state('networkidle', timeout=self.timeout)
+                    await page.goto(f'https://kick.com/{channel}', timeout=self.timeout, wait_until='networkidle')
                     
-                    # Ждем загрузки чата
-                    await page.wait_for_selector('textarea[placeholder*="chat"], input[placeholder*="message"], [data-testid="message-input"], .chat-input textarea, .message-input', timeout=self.timeout)
+                    # Ждем загрузки страницы и чата
+                    await page.wait_for_timeout(3000)
                     
-                    # Находим поле ввода сообщения
-                    message_input = page.locator('textarea[placeholder*="chat"], input[placeholder*="message"], [data-testid="message-input"], .chat-input textarea, .message-input').first
+                    # Пробуем различные селекторы для поля ввода сообщения
+                    message_input_selectors = [
+                        'textarea[placeholder*="Say something"]',
+                        'textarea[placeholder*="chat"]', 
+                        'input[placeholder*="message"]',
+                        'input[placeholder*="Say something"]',
+                        '[data-testid="message-input"]',
+                        '.chat-input textarea',
+                        '.message-input',
+                        'textarea[name="message"]',
+                        'input[name="message"]',
+                        '.chat-send-message textarea',
+                        '.chat-send-message input'
+                    ]
                     
-                    # Вводим сообщение
-                    await message_input.fill(message)
+                    message_input = None
+                    for selector in message_input_selectors:
+                        try:
+                            await page.wait_for_selector(selector, timeout=5000)
+                            message_input = page.locator(selector).first
+                            if await message_input.is_visible():
+                                break
+                        except:
+                            continue
+                    
+                    if not message_input:
+                        logger.error(f"Could not find message input field on {channel}")
+                        await browser.close()
+                        return False
+                    
+                    # Проверяем, что поле доступно для ввода
+                    if not await message_input.is_enabled():
+                        logger.error(f"Message input field is disabled on {channel}")
+                        await browser.close()
+                        return False
+                    
+                    # Очищаем поле и вводим сообщение
+                    await message_input.click()
+                    await message_input.fill('')
+                    await page.wait_for_timeout(500)
+                    await message_input.type(message, delay=50)
+                    await page.wait_for_timeout(1000)
                     
                     # Отправляем сообщение (Enter или кнопка)
                     await message_input.press('Enter')
                     
-                    # Ждем немного, чтобы сообщение отправилось
+                    # Ждем отправки сообщения
                     await page.wait_for_timeout(2000)
                     
                     await browser.close()
@@ -208,6 +277,10 @@ class KickPlaywrightClient:
                     
                 except PlaywrightTimeoutError:
                     logger.warning(f"Timeout while sending message to {channel}")
+                    await browser.close()
+                    return False
+                except Exception as e:
+                    logger.error(f"Error during message sending to {channel}: {e}")
                     await browser.close()
                     return False
                     

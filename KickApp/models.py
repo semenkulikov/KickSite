@@ -63,63 +63,96 @@ class KickAccount(models.Model):
     
     def _check_kick_account_valid_requests(self):
         """
-        Fallback метод валидации через requests (может не работать из-за Cloudflare)
+        Fallback валидация аккаунта через requests (может не работать из-за Cloudflare)
         """
-        proxies = None
-        proxy_url = getattr(self.proxy, 'url', None)
-        if proxy_url:
-            proxies = {
-                "http": proxy_url,
-                "https": proxy_url,
-            }
         try:
-            if self.session_token:
-                cookies = {'__Secure-next-auth.session-token': str(self.session_token)}
-                resp = requests.get('https://kick.com/api/v1/user/me', cookies=cookies, timeout=5, proxies=proxies)
-            else:
-                token = str(self.token)
-                headers = {'Authorization': f'Bearer {token}'}
-                resp = requests.get('https://kick.com/api/v1/user/me', headers=headers, timeout=5, proxies=proxies)
-            if resp.status_code == 200:
-                if self.status != 'active':
-                    self.status = 'active'
-                    self.save(update_fields=['status'])
-                return True
-            else:
-                if self.status != 'inactive':
-                    self.status = 'inactive'
-                    self.save(update_fields=['status'])
-                return False
-        except Exception:
-            # Если был прокси — помечаем его как невалидный, но пробуем без прокси
-            proxy_obj = self.proxy
-            if proxy_obj:
-                # Пробуем ещё раз без прокси
+            # Настройка прокси
+            proxies = {}
+            if self.proxy and self.proxy.url:
+                proxy_url = str(self.proxy.url)
+                if proxy_url.startswith(('http://', 'https://')):
+                    proxies = {
+                        'http': proxy_url,
+                        'https': proxy_url
+                    }
+                # SOCKS прокси поддерживаются через httpx[socks]
+                elif proxy_url.startswith('socks'):
+                    proxies = {
+                        'http': proxy_url,
+                        'https': proxy_url
+                    }
+            
+            headers = {
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+            
+            if self.token:
+                headers['Authorization'] = f'Bearer {self.token}'
+            
+            # Пробуем разные API эндпоинты для валидации
+            api_endpoints = [
+                'https://kick.com/api/v1/user',
+                'https://kick.com/api/v1/user/me',
+                'https://kick.com/api/v2/user/me'
+            ]
+            
+            for api_url in api_endpoints:
                 try:
-                    if self.session_token:
-                        cookies = {'__Secure-next-auth.session-token': str(self.session_token)}
-                        resp = requests.get('https://kick.com/api/v1/user/me', cookies=cookies, timeout=5)
-                    else:
-                        token = str(self.token)
-                        headers = {'Authorization': f'Bearer {token}'}
-                        resp = requests.get('https://kick.com/api/v1/user/me', headers=headers, timeout=5)
-                    if resp.status_code == 200:
-                        if self.status != 'active':
-                            self.status = 'active'
-                            self.save(update_fields=['status'])
-                        return True
-                    else:
-                        if self.status != 'inactive':
-                            self.status = 'inactive'
-                            self.save(update_fields=['status'])
-                        return False
-                except Exception:
-                    if self.status != 'inactive':
-                        self.status = 'inactive'
-                        self.save(update_fields=['status'])
-                    return False
-            else:
-                if self.status != 'inactive':
-                    self.status = 'inactive'
-                    self.save(update_fields=['status'])
-                return False
+                    response = requests.get(
+                        api_url,
+                        headers=headers,
+                        proxies=proxies,
+                        timeout=10,
+                        verify=False
+                    )
+                    
+                    if response.status_code == 200:
+                        # Проверяем, что ответ содержит данные пользователя
+                        try:
+                            data = response.json()
+                            if isinstance(data, dict) and ('username' in data or 'user_id' in data or 'id' in data):
+                                print(f"Account validation successful via {api_url}")
+                                return True
+                        except:
+                            # Если не JSON, проверяем текст
+                            content = response.text.lower()
+                            if 'username' in content or 'user_id' in content or '"id"' in content:
+                                print(f"Account validation successful via {api_url}")
+                                return True
+                                
+                except requests.exceptions.RequestException as e:
+                    print(f"Failed to validate via {api_url}: {e}")
+                    continue
+            
+            # Если API не работает, пробуем через основную страницу
+            try:
+                response = requests.get(
+                    'https://kick.com/',
+                    headers=headers,
+                    proxies=proxies,
+                    timeout=10,
+                    verify=False
+                )
+                
+                if response.status_code == 200:
+                    content = response.text.lower()
+                    # Ищем признаки авторизации
+                    auth_indicators = ['dashboard', 'profile', 'user-menu', 'go live', 'settings']
+                    
+                    for indicator in auth_indicators:
+                        if indicator in content:
+                            print(f"Account validation successful via page content indicator: {indicator}")
+                            return True
+                            
+            except requests.exceptions.RequestException as e:
+                print(f"Failed to validate via main page: {e}")
+            
+            print("Account validation failed - no valid indicators found")
+            return False
+            
+        except Exception as e:
+            print(f"Error during account validation: {e}")
+            return False
