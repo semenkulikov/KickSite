@@ -2,7 +2,7 @@ console.log('kick-ws.js LOADED');
 import {showAccounts, awaitAccounts, showNoAccounts} from "./kick-account";
 import {showAlert} from "./alert";
 import {workTimer, workTimerId, updateWorkButtonsState, updateChatButtonsState, showWorkNotification, hideWorkNotification} from "./kick-work";
-import {countingSendingPerMinute, averageSendingPerMinuteId} from "./kick-send"
+import {countingSendingPerMinute, averageSendingPerMinuteId, handleMessageResponse} from "./kick-send"
 import {intervalSendAutoMessageId, intervalTimerSendAutoMessageId} from "./kick-auto-messages"
 
 let _kickSocket = null;
@@ -71,7 +71,7 @@ const socket = new WebSocket(endpoint);
             setTimeout(() => updateWorkButtonsState(), 100);
           });
           awaitAccountsPingStatus = false;
-          break;
+        break;
       case 'KICK_LOAD_ACCOUNTS':
           import('./kick-account').then(mod => {
             if (mod.showAccounts) mod.showAccounts(message);
@@ -139,10 +139,10 @@ const socket = new WebSocket(endpoint);
         updateWorkButtonsState();
         break;
       case 'KICK_MESSAGE_SENT':
-        showAlert(message, "alert-success")
+        handleMessageResponse(message, true);
         break;
       case 'KICK_ERROR':
-        showAlert(message, "alert-danger")
+        handleMessageResponse(message, false);
         break;
       case 'KICK_CRITICAL_ERROR':
         showAlert(message, "alert-danger")
@@ -175,7 +175,7 @@ const socket = new WebSocket(endpoint);
         channel: channel
       }));
       console.log('[KICK-WS] Sent KICK_SELECT_CHANNEL:', channel);
-    }
+  }
   });
 
   _kickSocket = socket;

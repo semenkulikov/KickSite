@@ -4,6 +4,7 @@ import {selectAccount} from "./kick-account";
 import {getKickSocket, workStatus} from "./kick-ws";
 
 let averageSendingPerMinuteId;
+let pendingMessages = new Map(); // Отслеживание ожидающих отправки сообщений
 
 $('#sendInputMessage').on("click", () => {
   kickSend();
@@ -34,6 +35,10 @@ function kickSend() {
     console.log(`[kickSend] Found ${selectedAccounts.length} selected accounts`);
 
     if(workStatus) {
+      const messageId = Date.now(); // Уникальный ID для этой группы сообщений
+      let sentCount = 0;
+      let totalCount = selectedAccounts.length;
+      
       // Отправляем сообщения со всех выбранных аккаунтов
       selectedAccounts.forEach((accountElement, index) => {
         const accountLogin = accountElement.value;
@@ -41,31 +46,75 @@ function kickSend() {
           "channel": data.channel,
           "account": accountLogin,
           "message": data.message,
-          "auto": false
+          "auto": false,
+          "messageId": messageId,
+          "index": index
         };
         
         console.log(`[kickSend] Sending message from account ${index + 1}/${selectedAccounts.length}: ${accountLogin}`);
+        console.log(`${accountLogin}: ${data.message}`);
         
-        messagesSent++;
+        // Добавляем в отслеживание
+        pendingMessages.set(`${messageId}_${index}`, {
+          account: accountLogin,
+          message: data.message,
+          timestamp: Date.now()
+        });
+        
+      messagesSent++;
         addMessageToLogs(messageData);
         
         getKickSocket().send(JSON.stringify({
           "type": "KICK_SEND_MESSAGE",
           "message": messageData,
-        }));
+      }));
       });
+
+      // Показываем прогресс
+      showAlert(`📤 Sending ${totalCount} message(s)...`, "alert-info");
 
       // Очищаем поле ввода только если элемент существует
       const inputMessageElement = document.getElementById('inputMessage');
       if (inputMessageElement) {
-        inputMessageElement.value = "";
+      inputMessageElement.value = "";
       }
+      
+      // Таймаут для очистки "зависших" сообщений
+      setTimeout(() => {
+        pendingMessages.forEach((msg, key) => {
+          if (key.startsWith(messageId)) {
+            console.warn(`[kickSend] Message timeout: ${msg.account} - ${msg.message}`);
+            pendingMessages.delete(key);
+          }
+        });
+      }, 30000); // 30 секунд таймаут
+      
     }
     else {
       showAlert("You haven't started work. Click on the \"Start work\" button", "alert-danger")
     }
   } else {
     console.log('[kickSend] checkingConditions returned false - some validation failed');
+  }
+}
+
+// Функция для обработки ответов от сервера
+function handleMessageResponse(responseData, isSuccess) {
+  const account = responseData.account;
+  const message = responseData.text || responseData.message;
+  
+  if (isSuccess) {
+    console.log(`[handleMessageResponse] ✅ SUCCESS: ${account} - ${message}`);
+    showAlert(`✅ Message sent from ${account}`, "alert-success");
+  } else {
+    console.log(`[handleMessageResponse] ❌ ERROR: ${account} - ${message}`);
+    showAlert(`❌ Failed to send from ${account}: ${responseData.message}`, "alert-danger");
+  }
+  
+  // Удаляем из отслеживания (если есть ID)
+  if (responseData.messageId && responseData.index !== undefined) {
+    const key = `${responseData.messageId}_${responseData.index}`;
+    pendingMessages.delete(key);
   }
 }
 
@@ -100,7 +149,7 @@ function checkingConditions() {
   let inputMessage = checkInputMessage()
   let selectedChannel = checkSelectedChannel()
   let hasSelectedAccounts = checkSelectedAccount()
-  
+
   let results = {
     inputMessage: inputMessage,
     selectedChannel: selectedChannel,
@@ -112,13 +161,13 @@ function checkingConditions() {
   if (inputMessage && selectedChannel && hasSelectedAccounts) {
     console.log('[checkingConditions] All validations passed');
     return {
-      "channel": selectedChannel,
-      "message": inputMessage,
+    "channel": selectedChannel,
+    "message": inputMessage,
     }
   }
   else {
     console.log('[checkingConditions] Some validation failed');
-    return false
+  return false
   }
 }
 
@@ -175,4 +224,4 @@ function checkSelectedAccount() {
   return true;
 }
 
-export {countingSendingPerMinute, averageSendingPerMinuteId}
+export {countingSendingPerMinute, averageSendingPerMinuteId, handleMessageResponse}

@@ -48,7 +48,7 @@ function showAccounts(accounts) {
         // Клик по блоку — выделяет аккаунт (только если активен)
         block.addEventListener("click", function (e) {
             if (acc.status === 'active') {
-                selectAccount(input.id);
+            selectAccount(input.id);
                 updateChatButtonsState();
             }
         });
@@ -88,7 +88,7 @@ function selectAccount(id) {
     
     if (newState) {
         clickedAccount.parentNode.classList.add("account-checked");
-    } else {
+        } else {
         clickedAccount.parentNode.classList.remove("account-checked");
     }
     

@@ -8,12 +8,12 @@ if (startWorkBtn) {
   startWorkBtn.classList.add('btn', 'btn-success', 'mb-2', 'w-100');
   startWorkBtn.disabled = true;
   startWorkBtn.addEventListener("click", function () {
-    console.log("Start work");
+  console.log("Start work");
     getKickSocket().send(JSON.stringify({
       "type": "KICK_START_WORK",
-      "message": "Start work",
-    }));
-  });
+    "message": "Start work",
+  }));
+});
 }
 
 const endWorkBtn = document.getElementById("buttonEndWork");
@@ -21,14 +21,14 @@ if (endWorkBtn) {
   endWorkBtn.classList.add('btn', 'btn-danger', 'mb-2', 'w-100');
   endWorkBtn.disabled = true;
   endWorkBtn.addEventListener("click", function () {
-    console.log("End work");
+  console.log("End work");
     getKickSocket().send(JSON.stringify({
       "type": "KICK_END_WORK",
-      "message": "End work",
-    }));
+    "message": "End work",
+  }));
     document.getElementById("buttonEndWork").disabled = true;
     updateWorkButtonsState();
-  });
+});
 }
 
 function workTimer(startTime) {

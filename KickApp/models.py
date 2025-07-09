@@ -3,6 +3,11 @@ from django.contrib.auth import get_user_model
 import requests
 import asyncio
 from ProxyApp.models import Proxy
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+import datetime
+import os
+from .playwright_utils import playwright_login_and_save_storage_state
 
 # Create your models here.
 
@@ -18,6 +23,8 @@ class KickAccount(models.Model):
     updated = models.DateTimeField(auto_now=True)
     status = models.CharField(max_length=16, choices=[('active', 'Active'), ('inactive', 'Inactive')], default='active')
     session_token = models.CharField(max_length=400, blank=True, null=True)
+    storage_state_path = models.CharField(max_length=400, blank=True, null=True, help_text='Путь к storage_state playwright')
+    password = models.CharField(max_length=200, blank=True, null=True, help_text='Пароль от аккаунта Kick (используется только для playwright-логина)')
     def __str__(self):
         return self.login
 
@@ -30,7 +37,7 @@ class KickAccount(models.Model):
             # Пробуем через Playwright
             from .playwright_utils import validate_kick_account_playwright
             
-            proxy_url = getattr(self.proxy, 'url', None)
+            proxy_url = getattr(self.proxy, 'url', None) if self.proxy else None
             token = str(self.token) if self.token else None
             session_token = str(self.session_token) if self.session_token else None
             
@@ -68,8 +75,8 @@ class KickAccount(models.Model):
         try:
             # Настройка прокси
             proxies = {}
-            if self.proxy and self.proxy.url:
-                proxy_url = str(self.proxy.url)
+            proxy_url = getattr(self.proxy, 'url', None) if self.proxy else None
+            if proxy_url:
                 if proxy_url.startswith(('http://', 'https://')):
                     proxies = {
                         'http': proxy_url,
@@ -156,3 +163,44 @@ class KickAccount(models.Model):
         except Exception as e:
             print(f"Error during account validation: {e}")
             return False
+
+STORAGE_STATE_DIR = 'storage_states'
+STORAGE_STATE_MAX_AGE_DAYS = 7
+
+def is_storage_state_fresh(path):
+    try:
+        mtime = os.path.getmtime(path)
+        age = (datetime.datetime.now() - datetime.datetime.fromtimestamp(mtime)).days
+        return age < STORAGE_STATE_MAX_AGE_DAYS
+    except Exception:
+        return False
+
+@receiver(post_save, sender=KickAccount)
+def ensure_storage_state(sender, instance, created, **kwargs):
+    # Оптимизация: если нет логина или пароля — ничего не делаем
+    if not instance.login or not instance.password:
+        return
+    storage_state_path = instance.storage_state_path
+    if not storage_state_path:
+        storage_state_path = f'{STORAGE_STATE_DIR}/{instance.login}.json'
+    # Проверяем свежесть storage_state
+    if not os.path.exists(storage_state_path) or not is_storage_state_fresh(storage_state_path):
+        print(f'[KickAccount] Creating/updating storage_state for {instance.login}')
+        loop = asyncio.get_event_loop()
+        try:
+            result = loop.run_until_complete(
+                playwright_login_and_save_storage_state(
+                    login=instance.login,
+                    password=instance.password,
+                    storage_state_path=storage_state_path,
+                    proxy_url=str(getattr(instance.proxy, 'url', '')) if instance.proxy else ""
+                )
+            )
+            if result:
+                instance.storage_state_path = storage_state_path
+                instance.save(update_fields=['storage_state_path'])
+                print(f'[KickAccount] storage_state saved: {storage_state_path}')
+            else:
+                print(f'[KickAccount] Failed to create storage_state for {instance.login}')
+        except Exception as e:
+            print(f'[KickAccount] Exception in storage_state creation: {e}')

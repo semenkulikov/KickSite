@@ -7,57 +7,91 @@ from asgiref.sync import sync_to_async
 from django.db import models
 from KickApp.models import KickAccount
 from ProxyApp.models import Proxy
-from .playwright_utils import KickPlaywrightClient
+from .playwright_utils import KickPlaywrightClient, send_kick_message_phoenix_ws
 import requests
 
 
-async def send_kick_message(chatbot_id: int, channel: str, message: str, token: str, proxy_url: str = "", session_token: str = None):
+async def send_kick_message(chatbot_id: int, channel: str, message: str, token: str, proxy_url: str = "", session_token: str = None, storage_state_path: str = None):
     """
     Отправляет сообщение в чат Kick.com
-    Использует Playwright в первую очередь, httpx как fallback
+    Использует Phoenix WebSocket (storage_state) в первую очередь, затем Playwright (DOM), затем httpx
     """
     print(f"[SEND_MESSAGE] Starting message send from account {chatbot_id} to channel {channel}")
     print(f"[SEND_MESSAGE] Message: {message}")
     print(f"[SEND_MESSAGE] Has token: {bool(token)}")
     print(f"[SEND_MESSAGE] Has session_token: {bool(session_token)}")
     print(f"[SEND_MESSAGE] Proxy URL: {proxy_url}")
+    print(f"[SEND_MESSAGE] Storage state: {storage_state_path}")
     
-    # Сначала пробуем Playwright (основной метод)
+    # Преобразуем SOCKS5 прокси в HTTP для Playwright или отключаем его
+    playwright_proxy_url = None
+    if proxy_url:
+        if proxy_url.startswith('socks5://'):
+            print(f"[SEND_MESSAGE] WARNING: SOCKS5 proxy detected ({proxy_url}), Playwright will run without proxy")
+            playwright_proxy_url = None
+        elif proxy_url.startswith('http://') or proxy_url.startswith('https://'):
+            playwright_proxy_url = proxy_url
+        else:
+            print(f"[SEND_MESSAGE] WARNING: Unknown proxy format ({proxy_url}), Playwright will run without proxy")
+            playwright_proxy_url = None
+    
+    # 1. Пробуем Phoenix WebSocket (storage_state)
     try:
-        print(f"[SEND_MESSAGE] Attempting Playwright method for account {chatbot_id}")
+        print(f"[SEND_MESSAGE] Attempting Phoenix WebSocket method for account {chatbot_id}")
+        if storage_state_path and isinstance(storage_state_path, str):
+            success = await send_kick_message_phoenix_ws(
+                channel=channel,
+                message=message,
+                storage_state_path=storage_state_path,
+                proxy_url=playwright_proxy_url if playwright_proxy_url else ""
+            )
+            if success:
+                print(f"[SEND_MESSAGE] ✅ SUCCESS: Message sent via Phoenix WS from account {chatbot_id} to {channel}")
+                return True
+            else:
+                print(f"[SEND_MESSAGE] ❌ FAILED: Phoenix WS method failed for account {chatbot_id}")
+        else:
+            print(f"[SEND_MESSAGE] No storage_state_path provided, skipping Phoenix WS method")
+    except Exception as e:
+        print(f"[SEND_MESSAGE] ❌ ERROR: Phoenix WS method error for account {chatbot_id}: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # 2. Пробуем Playwright (DOM)
+    try:
+        print(f"[SEND_MESSAGE] Attempting Playwright DOM method for account {chatbot_id}")
         playwright_client = KickPlaywrightClient(headless=True, timeout=30000)
-        
         success = await playwright_client.send_message(
             channel=channel,
             message=message,
             token=token,
             session_token=session_token,
-            proxy_url=proxy_url
+            proxy_url=playwright_proxy_url
         )
-        
         if success:
-            print(f"[SEND_MESSAGE] ✅ SUCCESS: Message sent via Playwright from account {chatbot_id} to {channel}")
+            print(f"[SEND_MESSAGE] ✅ SUCCESS: Message sent via Playwright DOM from account {chatbot_id} to {channel}")
             return True
         else:
-            print(f"[SEND_MESSAGE] ❌ FAILED: Playwright method failed for account {chatbot_id}")
-            
+            print(f"[SEND_MESSAGE] ❌ FAILED: Playwright DOM method failed for account {chatbot_id}")
     except Exception as e:
-        print(f"[SEND_MESSAGE] ❌ ERROR: Playwright method error for account {chatbot_id}: {e}")
+        print(f"[SEND_MESSAGE] ❌ ERROR: Playwright DOM method error for account {chatbot_id}: {e}")
+        import traceback
+        traceback.print_exc()
     
-    # Fallback на httpx если Playwright не сработал
+    # 3. Fallback на httpx если Playwright не сработал
     try:
         print(f"[SEND_MESSAGE] Attempting httpx fallback method for account {chatbot_id}")
-        
-        success = await send_kick_message_httpx(chatbot_id, channel, message, token, proxy_url)
-        
+        proxy_url_str = proxy_url if proxy_url else ""
+        success = await send_kick_message_httpx(chatbot_id, channel, message, token, proxy_url_str)
         if success:
             print(f"[SEND_MESSAGE] ✅ SUCCESS: Message sent via httpx fallback from account {chatbot_id} to {channel}")
             return True
         else:
             print(f"[SEND_MESSAGE] ❌ FAILED: httpx fallback method failed for account {chatbot_id}")
-            
     except Exception as e:
         print(f"[SEND_MESSAGE] ❌ ERROR: httpx fallback method error for account {chatbot_id}: {e}")
+        import traceback
+        traceback.print_exc()
     
     print(f"[SEND_MESSAGE] ❌ FINAL FAILURE: All methods failed for account {chatbot_id} to {channel}")
     return False
@@ -159,8 +193,11 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             
         json_data = json.loads(text_data)
         _type = json_data.get('type')
+        event = json_data.get('event')
 
-        if _type == 'KICK_SELECT_CHANNEL':
+        if event == 'KICK_CONNECT' or _type == 'KICK_CONNECT':
+            pass
+        elif _type == 'KICK_SELECT_CHANNEL':
             print('[KICK-WS] KICK_SELECT_CHANNEL:', json_data)
             channel_name = json_data.get('channel')
             if not channel_name:
@@ -194,120 +231,29 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 print("Work is already in progress.")
                 return
 
-            message = json_data.get('message', 'Hello from the bot!')
-            frequency = int(json_data.get('frequency', 60))
-            self.work_task = asyncio.create_task(self.start_work(message, frequency))
+            channel = self.channel_group_name or 'default'
+            print(f"Work started for channel {channel}. Ready to send messages.")
             
-            # Отправляем событие о начале работы
-            import time
             await self.send(text_data=json.dumps({
-                'event': 'KICK_START_WORK',
-                'message': {
-                    'startWorkTime': time.time() * 1000  # время в миллисекундах
-                }
+                'type': 'KICK_WORK_READY',
+                'message': f'Work mode activated for channel {channel}. Ready to send messages.'
             }))
 
-        elif _type == 'KICK_END_WORK':
-            if self.work_task:
-                self.work_task.cancel()
-                self.work_task = None
-                await self.send(text_data=json.dumps({
-                    'event': 'KICK_END_WORK',
-                    'message': 'Work stopped'
-                }))
+            self.work_task = asyncio.create_task(self.start_work(json_data.get('message', 'Hello from the bot!'), 1))
 
         elif _type == 'KICK_SEND_MESSAGE':
             # Обработка отправки одиночного сообщения
-            message_data = json_data.get('message', {})
-            print(f"[KICK_SEND_MESSAGE] Processing message: {message_data}")
-            
-            channel = message_data.get('channel')
-            message_text = message_data.get('message')
-            account_login = message_data.get('account')
-            
-            print(f"[KICK_SEND_MESSAGE] Extracted data - channel: {channel}, account: {account_login}, message: {message_text}")
-            
-            if not all([channel, message_text, account_login]):
-                print(f"[KICK_SEND_MESSAGE] Missing required fields")
-                await self.send(text_data=json.dumps({
-                    'type': 'KICK_ERROR',
-                    'message': 'Missing required fields for message sending'
-                }))
-                return
-            
-            try:
-                print(f"[KICK_SEND_MESSAGE] Looking for account: {account_login}")
-                # Находим аккаунт по логину
-                account = await sync_to_async(KickAccount.objects.filter(login=account_login).first)()
-                if not account:
-                    print(f"[KICK_SEND_MESSAGE] Account {account_login} not found")
-                    await self.send(text_data=json.dumps({
-                        'type': 'KICK_ERROR',
-                        'message': f'Account {account_login} not found'
-                    }))
-                    return
-                
-                print(f"[KICK_SEND_MESSAGE] Account found: {account.login} (ID: {account.id})")
-                
-                # Получаем данные прокси
-                proxy_url = None
-                if account.proxy:
-                    proxy_url = getattr(account.proxy, 'url', None)
-                    print(f"[KICK_SEND_MESSAGE] Using proxy: {proxy_url}")
-                else:
-                    print(f"[KICK_SEND_MESSAGE] No proxy for account")
-                
-                print(f"[KICK_SEND_MESSAGE] Calling send_kick_message...")
-                # Отправляем сообщение
-                success = await send_kick_message(
-                    account.id,
-                    channel,
-                    message_text,
-                    account.token,
-                    proxy_url,
-                    account.session_token
-                )
-                
-                print(f"[KICK_SEND_MESSAGE] send_kick_message result: {success}")
-                
-                if success:
-                    print(f"[KICK_SEND_MESSAGE] Sending success response")
-                    await self.send(text_data=json.dumps({
-                        'type': 'KICK_MESSAGE_SENT',
-                        'message': f'Message sent successfully from {account_login} to {channel}'
-                    }))
-                else:
-                    print(f"[KICK_SEND_MESSAGE] Sending failure response")
-                    await self.send(text_data=json.dumps({
-                        'type': 'KICK_ERROR',
-                        'message': f'Failed to send message from {account_login} to {channel}'
-                    }))
-                    
-            except Exception as e:
-                print(f"[KICK_SEND_MESSAGE] Exception occurred: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                await self.send(text_data=json.dumps({
-                    'type': 'KICK_ERROR',
-                    'message': f'Error sending message: {str(e)}'
-                }))
+            await self.handle_send_message(json_data.get('message', {}))
+
+        elif _type == 'KICK_END_WORK':
+            await self.end_work()
 
     async def start_work(self, message: str, frequency: int):
         if not self.channel_group_name:
-            print("Cannot start work without a channel selected.")
+            print('No channel selected for work')
             return
 
-        # Убираем автоматическую отправку каждые frequency секунд
-        # Теперь start_work просто активирует состояние работы
-        # Сообщения отправляются только через KICK_SEND_MESSAGE события
-        
-        print(f"Work started for channel {self.channel_group_name}. Ready to send messages.")
-        
-        # Отправляем подтверждение о готовности к работе
-        await self.send(text_data=json.dumps({
-            'type': 'KICK_WORK_READY',
-            'message': f'Work mode activated for channel {self.channel_group_name}. Ready to send messages.'
-        }))
+        print(f'Starting work for channel: {self.channel_group_name}')
         
         # Отправляем событие о начале работы
         import time
@@ -344,20 +290,25 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             channel = message_data.get('channel')
             account_login = message_data.get('account')
             message_text = message_data.get('message')
+            storage_state_path = message_data.get('storage_state_path')
             
             if not all([channel, account_login, message_text]):
+                error_msg = 'Missing required fields: channel, account, or message'
+                print(f"[SEND_MESSAGE] ERROR: {error_msg}")
                 await self.send(text_data=json.dumps({
                     'type': 'KICK_ERROR',
-                    'message': 'Missing required fields: channel, account, or message'
+                    'message': error_msg
                 }))
                 return
             
             # Получаем аккаунт из базы данных асинхронно
             account = await self.get_account_by_login(account_login)
             if not account:
+                error_msg = f'Account {account_login} not found'
+                print(f"[SEND_MESSAGE] ERROR: {error_msg}")
                 await self.send(text_data=json.dumps({
                     'type': 'KICK_ERROR',
-                    'message': f'Account {account_login} not found'
+                    'message': error_msg
                 }))
                 return
             
@@ -365,9 +316,16 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             account_data = await self.get_account_data(account)
             token = account_data['token']
             session_token = account_data['session_token']
-            proxy_url = account_data['proxy_url']
+            proxy_url = account_data['proxy_url'] if account_data['proxy_url'] else ""
+            # storage_state_path можно хранить в account_data, если есть
+            if not storage_state_path:
+                storage_state_path = account_data.get('storage_state_path')
             
             print(f"[SEND_MESSAGE] Sending message from {account_login} to {channel}: {message_text}")
+            print(f"[SEND_MESSAGE] Token available: {bool(token)}")
+            print(f"[SEND_MESSAGE] Session token available: {bool(session_token)}")
+            print(f"[SEND_MESSAGE] Proxy URL: {proxy_url}")
+            print(f"[SEND_MESSAGE] Storage state: {storage_state_path}")
             
             # Отправляем сообщение
             success = await send_kick_message(
@@ -375,26 +333,37 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 channel=channel,
                 message=message_text,
                 token=token,
-                proxy_url=proxy_url or "",
-                session_token=session_token
+                proxy_url=proxy_url,
+                session_token=session_token,
+                storage_state_path=storage_state_path if storage_state_path else ""
             )
             
             if success:
+                success_msg = f'✅ Message sent successfully from {account_login} to {channel}: "{message_text}"'
+                print(f"[SEND_MESSAGE] {success_msg}")
                 await self.send(text_data=json.dumps({
                     'type': 'KICK_MESSAGE_SENT',
-                    'message': f'Message sent successfully from {account_login}'
+                    'message': success_msg,
+                    'account': account_login,
+                    'channel': channel,
+                    'text': message_text
                 }))
-                print(f"[SEND_MESSAGE] Message sent successfully from {account_login}")
             else:
+                error_msg = f'❌ Failed to send message from {account_login} to {channel}: "{message_text}"'
+                print(f"[SEND_MESSAGE] {error_msg}")
                 await self.send(text_data=json.dumps({
                     'type': 'KICK_ERROR',
-                    'message': f'Failed to send message from {account_login}'
+                    'message': error_msg,
+                    'account': account_login,
+                    'channel': channel,
+                    'text': message_text
                 }))
-                print(f"[SEND_MESSAGE] Failed to send message from {account_login}")
                 
         except Exception as e:
-            error_msg = f"Error sending message: {str(e)}"
+            error_msg = f"❌ Exception sending message: {str(e)}"
             print(f"[SEND_MESSAGE] {error_msg}")
+            import traceback
+            traceback.print_exc()
             await self.send(text_data=json.dumps({
                 'type': 'KICK_ERROR',
                 'message': error_msg
@@ -413,17 +382,23 @@ class KickAppChatWs(AsyncWebsocketConsumer):
     def get_account_data(self, account):
         """Get account data including proxy info"""
         try:
-            return {
+            data = {
                 'token': account.token,
                 'session_token': account.session_token,
                 'proxy_url': str(account.proxy.url) if account.proxy else None
             }
+            if hasattr(account, 'storage_state_path') and account.storage_state_path:
+                data['storage_state_path'] = account.storage_state_path
+            else:
+                data['storage_state_path'] = None
+            return data
         except Exception as e:
             print(f"[get_account_data] Error: {e}")
             return {
                 'token': None,
                 'session_token': None,
-                'proxy_url': None
+                'proxy_url': None,
+                'storage_state_path': None
             }
 
     async def ping_accounts(self):
@@ -465,23 +440,6 @@ class KickAppChatWs(AsyncWebsocketConsumer):
     async def select_channel(self, channel: str):
         # Получаем аккаунты асинхронно для выбранного канала
         await self.ping_accounts()
-
-    async def receive(self, text_data):
-        data = json.loads(text_data)
-        print(f"[KICK-WS] RECEIVE: {data}")
-
-        if data.get('event') == 'KICK_CONNECT':
-            pass
-        elif data.get('type') == 'KICK_SELECT_CHANNEL':
-            print(f"[KICK-WS] KICK_SELECT_CHANNEL: {data}")
-            self.channel_group_name = data.get('channel')
-            await self.select_channel(data.get('channel'))
-        elif data.get('type') == 'KICK_START_WORK':
-            await self.start_work(data.get('message'), 1)  # frequency по умолчанию 1
-        elif data.get('type') == 'KICK_SEND_MESSAGE':
-            await self.handle_send_message(data.get('message'))
-        elif data.get('type') == 'KICK_END_WORK':
-            await self.end_work()
 
 class KickAppStatsWs(AsyncWebsocketConsumer):
     async def connect(self):
