@@ -468,21 +468,77 @@ async def playwright_login_and_save_storage_state(login: str, password: str, sto
             context = await browser.new_context()
             page = await context.new_page()
             await page.goto('https://kick.com/', timeout=30000)
-            # Клик по кнопке логина
-            await page.click('text=Log In')
+            # Клик по кнопке логина (ищем актуальный селектор)
+            login_btn_selectors = [
+                'text=Log In',
+                'button:has-text("Log In")',
+                'a[href="/login"]',
+                'a:has-text("Log In")',
+                '[data-testid="login-button"]',
+                'button[type="button"]:has-text("Log In")',
+            ]
+            login_btn = None
+            for sel in login_btn_selectors:
+                try:
+                    await page.wait_for_selector(sel, timeout=4000)
+                    btn = page.locator(sel).first
+                    if await btn.is_visible():
+                        login_btn = btn
+                        break
+                except Exception:
+                    continue
+            if not login_btn:
+                await page.screenshot(path="logs/playwright_login_fail.png")
+                print(f"[playwright_login_and_save_storage_state] ERROR: Log In button not found! Скриншот сохранён.")
+                await browser.close()
+                return False
+            await login_btn.click()
+            # Ждём появления формы логина
             await page.wait_for_selector('input[name="email"]', timeout=10000)
             await page.fill('input[name="email"]', login)
             await page.fill('input[name="password"]', password)
-            await page.click('button[type="submit"]')
+            # Клик по submit (ищем актуальный селектор)
+            submit_btn_selectors = [
+                'button[type="submit"]',
+                'button:has-text("Log In")',
+                '[data-testid="login-submit"]',
+            ]
+            submit_btn = None
+            for sel in submit_btn_selectors:
+                try:
+                    await page.wait_for_selector(sel, timeout=4000)
+                    btn = page.locator(sel).first
+                    if await btn.is_visible():
+                        submit_btn = btn
+                        break
+                except Exception:
+                    continue
+            if not submit_btn:
+                await page.screenshot(path="logs/playwright_login_fail_submit.png")
+                print(f"[playwright_login_and_save_storage_state] ERROR: Submit button not found! Скриншот сохранён.")
+                await browser.close()
+                return False
+            await submit_btn.click()
             # Ждём успешного входа (например, появление user-menu)
-            await page.wait_for_selector('[data-testid="user-menu"], .user-menu, .avatar', timeout=15000)
+            try:
+                await page.wait_for_selector('[data-testid="user-menu"], .user-menu, .avatar', timeout=15000)
+            except Exception:
+                await page.screenshot(path="logs/playwright_login_fail_user_menu.png")
+                print(f"[playwright_login_and_save_storage_state] ERROR: User menu not found after login! Скриншот сохранён.")
+                await browser.close()
+                return False
             # Сохраняем storage_state
-            os.makedirs(os.path.dirname(storage_state_path), exist_ok=True)
-            await context.storage_state(path=storage_state_path)
+            safe_storage_state_path = storage_state_path if storage_state_path else 'storage_states/unknown.json'
+            os.makedirs(os.path.dirname(safe_storage_state_path), exist_ok=True)
+            await context.storage_state(path=safe_storage_state_path)
             await browser.close()
             return True
     except Exception as e:
         import traceback
+        try:
+            await page.screenshot(path="logs/playwright_login_fail_exception.png")
+        except Exception:
+            pass
         print(f"[playwright_login_and_save_storage_state] ERROR: {e}")
         traceback.print_exc()
         return False 

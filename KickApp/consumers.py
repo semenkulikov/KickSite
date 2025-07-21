@@ -7,165 +7,170 @@ from asgiref.sync import sync_to_async
 from django.db import models
 from KickApp.models import KickAccount
 from ProxyApp.models import Proxy
-from .playwright_utils import KickPlaywrightClient, send_kick_message_phoenix_ws
 import requests
+import websockets
+import sys
+import logging
+import cloudscraper
+import urllib.parse
+import time
+import re
+import subprocess
 
 
-async def send_kick_message(chatbot_id: int, channel: str, message: str, token: str, proxy_url: str = "", session_token: str = None, storage_state_path: str = None):
+async def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message: str, token: str, session_token: str, proxy_url: str = ""):
     """
-    Отправляет сообщение в чат Kick.com
-    Использует Phoenix WebSocket (storage_state) в первую очередь, затем Playwright (DOM), затем httpx
+    Отправляет сообщение в чат Kick.com используя cloudscraper
+    Точная копия рабочего кода kickchatsend.py
     """
-    print(f"[SEND_MESSAGE] Starting message send from account {chatbot_id} to channel {channel}")
-    print(f"[SEND_MESSAGE] Message: {message}")
-    print(f"[SEND_MESSAGE] Has token: {bool(token)}")
-    print(f"[SEND_MESSAGE] Has session_token: {bool(session_token)}")
-    print(f"[SEND_MESSAGE] Proxy URL: {proxy_url}")
-    print(f"[SEND_MESSAGE] Storage state: {storage_state_path}")
+    logger = logging.getLogger("kick.send")
+    logger.setLevel(logging.DEBUG)
+    if not logger.hasHandlers():
+        logger.addHandler(logging.StreamHandler())
     
-    # Преобразуем SOCKS5 прокси в HTTP для Playwright или отключаем его
-    playwright_proxy_url = None
+    logger.info(f"[SEND_MESSAGE] account={chatbot_id} channel={channel} message={message}")
+    logger.debug(f"[SEND_MESSAGE] token={token}")
+    logger.debug(f"[SEND_MESSAGE] session_token={session_token}")
+    
+    # Пока что игнорируем прокси, так как cloudscraper не работает с SOCKS5
     if proxy_url:
-        if proxy_url.startswith('socks5://'):
-            print(f"[SEND_MESSAGE] WARNING: SOCKS5 proxy detected ({proxy_url}), Playwright will run without proxy")
-            playwright_proxy_url = None
-        elif proxy_url.startswith('http://') or proxy_url.startswith('https://'):
-            playwright_proxy_url = proxy_url
-        else:
-            print(f"[SEND_MESSAGE] WARNING: Unknown proxy format ({proxy_url}), Playwright will run without proxy")
-            playwright_proxy_url = None
+        logger.warning(f"[SEND_MESSAGE] Proxy {proxy_url} ignored - cloudscraper doesn't support SOCKS5 properly")
     
-    # 1. Пробуем Phoenix WebSocket (storage_state)
+    # Извлекаем данные точно как в рабочем коде
+    # В рабочем коде session_token содержит USERID|TOKEN
+    session_raw = f"{chatbot_id}|{token.split('|')[1] if '|' in token else token}"
+    if not session_raw:
+        logger.error("[SEND_MESSAGE] No session_token provided")
+        return False
+    
+    # Декодируем session_token для Bearer токена
+    session_decoded = urllib.parse.unquote(session_raw)
+    
+    # Извлекаем XSRF-TOKEN из token точно как в рабочем коде
+    # В рабочем коде XSRF-TOKEN берется из второй части после | в token
+    xsrf_token = None
+    if '|' in token:
+        xsrf_token = token.split('|')[1] if len(token.split('|')) > 1 else None
+    
+    # Формируем cookie строку точно как в рабочем коде
+    cookie_parts = []
+    if session_raw:
+        # session_token содержит USERID|TOKEN
+        cookie_parts.append(f"session_token={session_raw}")
+    if xsrf_token:
+        # XSRF-TOKEN тоже URL-encoded
+        cookie_parts.append(f"XSRF-TOKEN={xsrf_token}")
+    
+    cookie_string = "; ".join(cookie_parts)
+    
+    logger.debug(f"[SEND_MESSAGE] SESSION_RAW: {session_raw}")
+    logger.debug(f"[SEND_MESSAGE] XSRF_TOKEN: {xsrf_token}")
+    logger.debug(f"[SEND_MESSAGE] SESSION_DECODED: {session_decoded}")
+    logger.debug(f"[SEND_MESSAGE] Cookie string: {cookie_string}")
+    
+    # Создаем cloudscraper точно как в рабочем коде
+    S = cloudscraper.create_scraper()
+    S.headers.update({
+        "cookie": cookie_string,
+        "user-agent": "Mozilla/5.0"
+    })
+    
     try:
-        print(f"[SEND_MESSAGE] Attempting Phoenix WebSocket method for account {chatbot_id}")
-        if storage_state_path and isinstance(storage_state_path, str):
-            success = await send_kick_message_phoenix_ws(
-                channel=channel,
-                message=message,
-                storage_state_path=storage_state_path,
-                proxy_url=playwright_proxy_url if playwright_proxy_url else ""
-            )
-            if success:
-                print(f"[SEND_MESSAGE] ✅ SUCCESS: Message sent via Phoenix WS from account {chatbot_id} to {channel}")
-                return True
-            else:
-                print(f"[SEND_MESSAGE] ❌ FAILED: Phoenix WS method failed for account {chatbot_id}")
-        else:
-            print(f"[SEND_MESSAGE] No storage_state_path provided, skipping Phoenix WS method")
+        # Получаем chatroom_id точно как в рабочем коде
+        logger.info(f"[SEND_MESSAGE] Getting channel info for: {channel}")
+        response = S.get(f"https://kick.com/api/v2/channels/{channel}", timeout=10)
+        logger.debug(f"[SEND_MESSAGE] GET {response.url} status={response.status_code}")
+        
+        if response.status_code != 200:
+            logger.error(f"[SEND_MESSAGE] Channel lookup failed: {response.status_code} {response.text[:400]}")
+            return False
+        
+        chat_id = response.json()["chatroom"]["id"]
+        logger.info(f"[SEND_MESSAGE] Got chatroom_id: {chat_id}")
+        
     except Exception as e:
-        print(f"[SEND_MESSAGE] ❌ ERROR: Phoenix WS method error for account {chatbot_id}: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"[SEND_MESSAGE] Could not fetch channel info: {e}")
+        return False
     
-    # 2. Пробуем Playwright (DOM)
+    # Отправляем сообщение точно как в рабочем коде
+    url = f"https://kick.com/api/v2/messages/send/{chat_id}"
+    
+    headers = {
+        "Authorization": f"Bearer {session_decoded}",
+        "X-XSRF-TOKEN": xsrf_token if xsrf_token else "",  # still URL-encoded!
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Referer": f"https://kick.com/{channel}",
+        "cluster": "v2",                      # Kick's front-end sends this
+    }
+    
+    payload = {
+        "content": message,
+        "type": "message",
+        "message_ref": str(int(time.time() * 1000))  # ms epoch
+    }
+    
+    logger.debug(f"[SEND_MESSAGE] Sending POST to: {url}")
+    logger.debug(f"[SEND_MESSAGE] Headers: {headers}")
+    logger.debug(f"[SEND_MESSAGE] Payload: {payload}")
+    
     try:
-        print(f"[SEND_MESSAGE] Attempting Playwright DOM method for account {chatbot_id}")
-        playwright_client = KickPlaywrightClient(headless=True, timeout=30000)
-        success = await playwright_client.send_message(
-            channel=channel,
-            message=message,
-            token=token,
-            session_token=session_token,
-            proxy_url=playwright_proxy_url
-        )
-        if success:
-            print(f"[SEND_MESSAGE] ✅ SUCCESS: Message sent via Playwright DOM from account {chatbot_id} to {channel}")
-            return True
-        else:
-            print(f"[SEND_MESSAGE] ❌ FAILED: Playwright DOM method failed for account {chatbot_id}")
-    except Exception as e:
-        print(f"[SEND_MESSAGE] ❌ ERROR: Playwright DOM method error for account {chatbot_id}: {e}")
-        import traceback
-        traceback.print_exc()
-    
-    # 3. Fallback на httpx если Playwright не сработал
-    try:
-        print(f"[SEND_MESSAGE] Attempting httpx fallback method for account {chatbot_id}")
-        proxy_url_str = proxy_url if proxy_url else ""
-        success = await send_kick_message_httpx(chatbot_id, channel, message, token, proxy_url_str)
-        if success:
-            print(f"[SEND_MESSAGE] ✅ SUCCESS: Message sent via httpx fallback from account {chatbot_id} to {channel}")
-            return True
-        else:
-            print(f"[SEND_MESSAGE] ❌ FAILED: httpx fallback method failed for account {chatbot_id}")
-    except Exception as e:
-        print(f"[SEND_MESSAGE] ❌ ERROR: httpx fallback method error for account {chatbot_id}: {e}")
-        import traceback
-        traceback.print_exc()
-    
-    print(f"[SEND_MESSAGE] ❌ FINAL FAILURE: All methods failed for account {chatbot_id} to {channel}")
-    return False
+        r = S.post(url, headers=headers, json=payload, timeout=10)
+        logger.debug(f"[SEND_MESSAGE] POST {url} status={r.status_code}")
+        logger.debug(f"[SEND_MESSAGE] Response content: {r.text}")
 
-
-async def send_kick_message_httpx(chatbot_id: int, channel: str, message: str, token: str, proxy_url: str = None):
-    """Fallback method: Sends a message to a Kick chat using httpx (may not work due to Cloudflare)."""
-    proxies = None
-    if proxy_url:
-        proxy_url = str(proxy_url)
-        proxies = {
-            "http://": proxy_url,
-            "https://": proxy_url,
-        }
-    
-    async with httpx.AsyncClient(proxies=proxies, timeout=30.0) as client:
-        try:
-            # 1. Получаем информацию о канале и chatroom_id
-            channel_api_url = f"https://kick.com/api/v2/channels/{channel}"
-            headers = {
-                'Authorization': f'Bearer {token}',
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-            
-            response = await client.get(channel_api_url, headers=headers)
-            response.raise_for_status()
-            channel_data = response.json()
-            
-            chatroom_id = channel_data.get("chatroom", {}).get("id")
-            if not chatroom_id:
-                print(f"Could not find chatroom ID for channel: {channel}")
+        if r.status_code == 201:
+            logger.info(f"[SEND_MESSAGE] ✓ sent: {message}")
+            return True
+        elif r.status_code == 200:
+            try:
+                response_json = r.json()
+                if response_json.get("message") == []: # Check if "message" key exists and its value is an empty list
+                    logger.error(f"[SEND_MESSAGE] ❌ failed: empty response (возможно, требуется подписка/фоллов)")
+                    logger.error(f"[SEND_MESSAGE] Response: {r.text}")
+                    return False
+                elif "FOLLOWERS_ONLY_ERROR" in r.text: # Still keep text check for this specific error
+                    logger.error(f"[SEND_MESSAGE] ❌ failed: FOLLOWERS_ONLY_ERROR (требуется подписка/фоллов)")
+                    logger.error(f"[SEND_MESSAGE] Response: {r.text}")
+                    return False
+                else:
+                    logger.info(f"[SEND_MESSAGE] ✓ sent: {message}")
+                    return True
+            except json.JSONDecodeError:
+                logger.error(f"[SEND_MESSAGE] ❌ failed: non-JSON 200 response (возможно, требуется подписка/фоллов)")
+                logger.error(f"[SEND_MESSAGE] Response: {r.text}")
                 return False
-
-            # 2. Отправляем сообщение используя правильный API эндпоинт
-            # Пробуем сначала новый API v2
-            send_message_url = f"https://kick.com/api/v2/messages/send/{chatroom_id}"
-            payload = {
-                'content': message,
-                'type': 'message'
-            }
-            
-            try:
-                response = await client.post(send_message_url, headers=headers, json=payload)
-                response.raise_for_status()
-                print(f"Message sent successfully from account {chatbot_id} to {channel} via httpx (API v2)")
-                return True
-            except httpx.HTTPStatusError as e:
-                print(f"API v2 failed: {e.response.status_code} - {e.response.text}")
-                # Fallback на старый API v1
-                send_message_url = f"https://kick.com/api/v1/chat-messages"
-                payload = {
-                    'chatroom_id': chatroom_id,
-                    'message': message,
-                    'type': 'message'
-                }
-                
-                response = await client.post(send_message_url, headers=headers, json=payload)
-                response.raise_for_status()
-                print(f"Message sent successfully from account {chatbot_id} to {channel} via httpx (API v1)")
-                return True
-
-        except httpx.HTTPStatusError as e:
-            error_text = ""
-            try:
-                error_text = e.response.text
-            except:
-                error_text = str(e)
-            print(f"HTTP error sending message from {chatbot_id} to {channel}: {e.response.status_code} - {error_text}")
+        else:
+            logger.error(f"[SEND_MESSAGE] ❌ failed: {r.status_code}")
+            logger.error(f"[SEND_MESSAGE] Response: {r.text[:400]}")
             return False
-        except Exception as e:
-            print(f"An error occurred sending message from {chatbot_id} to {channel}: {e}")
-            return False
+
+    except Exception as e:
+        logger.error(f"[SEND_MESSAGE] Failed to send message: {e}")
+        return False
+
+
+async def get_channel_id_by_slug(channel_slug: str, token: str = None):
+    """Получить channel_id по slug через API"""
+    import httpx
+    url = f"https://kick.com/api/v2/channels/{channel_slug}"
+    headers = {
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': 'application/json',
+    }
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(url, headers=headers)
+        resp.raise_for_status()
+        data = resp.json()
+        return str(data['id'])
+
+
+def ws_connect_compat(url, origin):
+    # websockets >=15 не поддерживает extra_headers/headers, только origin
+    return websockets.connect(url, origin=origin)
 
 
 class KickAppChatWs(AsyncWebsocketConsumer):
@@ -211,20 +216,29 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 )
             # Получаем все аккаунты
             accounts = await sync_to_async(list)(KickAccount.objects.all())
-            # Проверяем валидность каждого аккаунта (асинхронно через sync_to_async)
-            checked_accounts = []
-            for acc in accounts:
-                is_valid = await sync_to_async(acc.check_kick_account_valid)()
-                checked_accounts.append({
-                    'id': acc.id,
-                    'login': acc.login,
-                    'status': acc.status
-                })
-            print('[KICK-WS] SEND ACCOUNTS:', checked_accounts)
-            await self.send(text_data=json.dumps({
-                'event': 'KICK_ACCOUNTS',
-                'message': checked_accounts
-            }))
+            semaphore = asyncio.Semaphore(10)  # лимит одновременных проверок
+            @sync_to_async
+            def get_proxy_str(acc):
+                if hasattr(acc, 'proxy') and acc.proxy:
+                    return str(acc.proxy.url)
+                return None
+            async def check_and_send(acc):
+                proxy_str = await get_proxy_str(acc)
+                async with semaphore:
+                    try:
+                        await asyncio.wait_for(acc.acheck_kick_account_valid(proxy=proxy_str), timeout=10)
+                    except Exception:
+                        acc.status = 'timeout'
+                    account_status = {
+                        'id': acc.id,
+                        'login': acc.login,
+                        'status': acc.status
+                    }
+                    await self.send(text_data=json.dumps({
+                        'event': 'KICK_ACCOUNT_STATUS',
+                        'message': account_status
+                    }))
+            await asyncio.gather(*(check_and_send(acc) for acc in accounts))
 
         elif _type == 'KICK_START_WORK':
             if self.work_task and not self.work_task.done():
@@ -290,7 +304,6 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             channel = message_data.get('channel')
             account_login = message_data.get('account')
             message_text = message_data.get('message')
-            storage_state_path = message_data.get('storage_state_path')
             
             if not all([channel, account_login, message_text]):
                 error_msg = 'Missing required fields: channel, account, or message'
@@ -314,28 +327,43 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             
             # Получаем данные аккаунта асинхронно
             account_data = await self.get_account_data(account)
-            token = account_data['token']
-            session_token = account_data['session_token']
-            proxy_url = account_data['proxy_url'] if account_data['proxy_url'] else ""
-            # storage_state_path можно хранить в account_data, если есть
-            if not storage_state_path:
-                storage_state_path = account_data.get('storage_state_path')
+            token = account_data['token'] or ""
+            session_token = account_data['session_token'] or ""
+            proxy_url = account_data['proxy_url']
             
             print(f"[SEND_MESSAGE] Sending message from {account_login} to {channel}: {message_text}")
             print(f"[SEND_MESSAGE] Token available: {bool(token)}")
             print(f"[SEND_MESSAGE] Session token available: {bool(session_token)}")
             print(f"[SEND_MESSAGE] Proxy URL: {proxy_url}")
-            print(f"[SEND_MESSAGE] Storage state: {storage_state_path}")
-            
-            # Отправляем сообщение
-            success = await send_kick_message(
+
+            # Проверяем обязательные поля
+            if not session_token:
+                error_msg = f'No session_token for account {account_login}'
+                print(f"[SEND_MESSAGE] ERROR: {error_msg}")
+                await self.send(text_data=json.dumps({
+                    'type': 'KICK_ERROR',
+                    'message': error_msg
+                }))
+                return
+
+            # Проверяем прокси - ОБЯЗАТЕЛЬНО
+            if not proxy_url:
+                error_msg = f'No proxy assigned to account {account_login}'
+                print(f"[SEND_MESSAGE] ERROR: {error_msg}")
+                await self.send(text_data=json.dumps({
+                    'type': 'KICK_ERROR',
+                    'message': error_msg
+                }))
+                return
+
+            # Отправляем сообщение через cloudscraper
+            success = await send_kick_message_cloudscraper(
                 chatbot_id=account.id,
                 channel=channel,
                 message=message_text,
                 token=token,
-                proxy_url=proxy_url,
                 session_token=session_token,
-                storage_state_path=storage_state_path if storage_state_path else ""
+                proxy_url=proxy_url
             )
             
             if success:
@@ -358,15 +386,11 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                     'channel': channel,
                     'text': message_text
                 }))
-                
         except Exception as e:
-            error_msg = f"❌ Exception sending message: {str(e)}"
-            print(f"[SEND_MESSAGE] {error_msg}")
-            import traceback
-            traceback.print_exc()
+            print(f"[SEND_MESSAGE] Exception: {e}")
             await self.send(text_data=json.dumps({
                 'type': 'KICK_ERROR',
-                'message': error_msg
+                'message': f'Exception: {str(e)}'
             }))
 
     @database_sync_to_async
@@ -387,18 +411,13 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 'session_token': account.session_token,
                 'proxy_url': str(account.proxy.url) if account.proxy else None
             }
-            if hasattr(account, 'storage_state_path') and account.storage_state_path:
-                data['storage_state_path'] = account.storage_state_path
-            else:
-                data['storage_state_path'] = None
             return data
         except Exception as e:
             print(f"[get_account_data] Error: {e}")
             return {
                 'token': None,
                 'session_token': None,
-                'proxy_url': None,
-                'storage_state_path': None
+                'proxy_url': None
             }
 
     async def ping_accounts(self):

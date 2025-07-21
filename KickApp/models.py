@@ -8,6 +8,9 @@ from django.dispatch import receiver
 import datetime
 import os
 from .playwright_utils import playwright_login_and_save_storage_state
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from asgiref.sync import sync_to_async
 
 # Create your models here.
 
@@ -25,48 +28,33 @@ class KickAccount(models.Model):
     session_token = models.CharField(max_length=400, blank=True, null=True)
     storage_state_path = models.CharField(max_length=400, blank=True, null=True, help_text='Путь к storage_state playwright')
     password = models.CharField(max_length=200, blank=True, null=True, help_text='Пароль от аккаунта Kick (используется только для playwright-логина)')
+    storage_state_status = models.CharField(max_length=16, blank=True, null=True, default='pending', help_text='Статус генерации storage_state: pending/success/fail')
     def __str__(self):
         return self.login
 
-    def check_kick_account_valid(self):
+    async def acheck_kick_account_valid(self, proxy=None):
         """
-        Проверка валидности аккаунта Kick через Playwright
-        Fallback на requests если Playwright не работает
+        Асинхронная проверка валидности аккаунта Kick через Playwright (или fallback requests)
         """
         try:
-            # Пробуем через Playwright
             from .playwright_utils import validate_kick_account_playwright
-            
-            proxy_url = getattr(self.proxy, 'url', None) if self.proxy else None
+            proxy_url = proxy if proxy else (getattr(self.proxy, 'url', None) if self.proxy else None)
             token = str(self.token) if self.token else None
             session_token = str(self.session_token) if self.session_token else None
-            
-            # Запускаем async функцию в sync контексте
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            
-            is_valid = loop.run_until_complete(
-                validate_kick_account_playwright(token, session_token, proxy_url)
-            )
-            
+            is_valid = await validate_kick_account_playwright(token, session_token, proxy_url)
             if is_valid:
                 if self.status != 'active':
                     self.status = 'active'
-                    self.save(update_fields=['status'])
+                    await sync_to_async(self.save)(update_fields=['status'])
                 return True
             else:
                 if self.status != 'inactive':
                     self.status = 'inactive'
-                    self.save(update_fields=['status'])
+                    await sync_to_async(self.save)(update_fields=['status'])
                 return False
-                
         except Exception as e:
-            # Fallback на старый метод через requests
             print(f"Playwright validation failed, falling back to requests: {e}")
-            return self._check_kick_account_valid_requests()
+            return await sync_to_async(self._check_kick_account_valid_requests)()
     
     def _check_kick_account_valid_requests(self):
         """
@@ -175,32 +163,39 @@ def is_storage_state_fresh(path):
     except Exception:
         return False
 
+def async_generate_storage_state(instance_id):
+    from django.apps import apps
+    KickAccount = apps.get_model('KickApp', 'KickAccount')
+    acc = KickAccount.objects.get(id=instance_id)
+    storage_state_path = f'storage_states/{acc.login}.json'
+    acc.storage_state_status = 'pending'
+    acc.save(update_fields=["storage_state_status"])
+    import asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        result = loop.run_until_complete(
+            playwright_login_and_save_storage_state(
+                login=acc.login,
+                password=acc.password,
+                storage_state_path=storage_state_path,
+                proxy_url=str(getattr(acc.proxy, 'url', '')) if acc.proxy else ""
+            )
+        )
+    finally:
+        loop.close()
+    if result:
+        acc.storage_state_path = storage_state_path
+        acc.storage_state_status = 'success'
+        acc.save(update_fields=["storage_state_path", "storage_state_status"])
+    else:
+        acc.storage_state_status = 'fail'
+        acc.save(update_fields=["storage_state_status"])
+
+storage_state_executor = ThreadPoolExecutor(max_workers=2)
+
 @receiver(post_save, sender=KickAccount)
 def ensure_storage_state(sender, instance, created, **kwargs):
-    # Оптимизация: если нет логина или пароля — ничего не делаем
     if not instance.login or not instance.password:
         return
-    storage_state_path = instance.storage_state_path
-    if not storage_state_path:
-        storage_state_path = f'{STORAGE_STATE_DIR}/{instance.login}.json'
-    # Проверяем свежесть storage_state
-    if not os.path.exists(storage_state_path) or not is_storage_state_fresh(storage_state_path):
-        print(f'[KickAccount] Creating/updating storage_state for {instance.login}')
-        loop = asyncio.get_event_loop()
-        try:
-            result = loop.run_until_complete(
-                playwright_login_and_save_storage_state(
-                    login=instance.login,
-                    password=instance.password,
-                    storage_state_path=storage_state_path,
-                    proxy_url=str(getattr(instance.proxy, 'url', '')) if instance.proxy else ""
-                )
-            )
-            if result:
-                instance.storage_state_path = storage_state_path
-                instance.save(update_fields=['storage_state_path'])
-                print(f'[KickAccount] storage_state saved: {storage_state_path}')
-            else:
-                print(f'[KickAccount] Failed to create storage_state for {instance.login}')
-        except Exception as e:
-            print(f'[KickAccount] Exception in storage_state creation: {e}')
+    storage_state_executor.submit(async_generate_storage_state, instance.id)

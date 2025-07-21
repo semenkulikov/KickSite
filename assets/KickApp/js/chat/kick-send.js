@@ -100,21 +100,13 @@ function kickSend() {
 
 // Функция для обработки ответов от сервера
 function handleMessageResponse(responseData, isSuccess) {
-  const account = responseData.account;
-  const message = responseData.text || responseData.message;
-  
+  const account = responseData.account || "unknown";
+  const message = responseData.text || responseData.message || "no message";
+
   if (isSuccess) {
-    console.log(`[handleMessageResponse] ✅ SUCCESS: ${account} - ${message}`);
-    showAlert(`✅ Message sent from ${account}`, "alert-success");
+    showAlert(`✅ Message sent from ${account}: ${message}`, "alert-success");
   } else {
-    console.log(`[handleMessageResponse] ❌ ERROR: ${account} - ${message}`);
-    showAlert(`❌ Failed to send from ${account}: ${responseData.message}`, "alert-danger");
-  }
-  
-  // Удаляем из отслеживания (если есть ID)
-  if (responseData.messageId && responseData.index !== undefined) {
-    const key = `${responseData.messageId}_${responseData.index}`;
-    pendingMessages.delete(key);
+    showAlert(`❌ Failed to send from ${account}: ${message}`, "alert-danger");
   }
 }
 

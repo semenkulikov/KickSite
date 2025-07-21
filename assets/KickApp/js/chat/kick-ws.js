@@ -139,13 +139,20 @@ const socket = new WebSocket(endpoint);
         updateWorkButtonsState();
         break;
       case 'KICK_MESSAGE_SENT':
-        handleMessageResponse(message, true);
+        handleMessageResponse(data, true);
         break;
       case 'KICK_ERROR':
-        handleMessageResponse(message, false);
+        handleMessageResponse(data, false);
         break;
       case 'KICK_CRITICAL_ERROR':
         showAlert(message, "alert-danger")
+        break;
+      case 'KICK_ACCOUNT_STATUS':
+        import('./kick-account').then(mod => {
+          if (mod.showAccounts) mod.showAccounts([message]);
+          else if (mod.default && mod.default.showAccounts) mod.default.showAccounts([message]);
+          else console.error('showAccounts not found in kick-account module', mod);
+        });
         break;
       default:
           console.log("No event", event, data);
