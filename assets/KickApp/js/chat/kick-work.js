@@ -9,6 +9,8 @@ if (startWorkBtn) {
   startWorkBtn.disabled = true;
   startWorkBtn.addEventListener("click", function () {
   console.log("Start work");
+    // Показываем алерт сразу при нажатии
+    showAlert("You have started work", "alert-success");
     getKickSocket().send(JSON.stringify({
       "type": "KICK_START_WORK",
     "message": "Start work",

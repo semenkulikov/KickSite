@@ -103,7 +103,6 @@ const socket = new WebSocket(endpoint);
         console.log('[KICK-WS] KICK_START_WORK received, setting workStatus = true');
         workStatus = true;
         countingSendingPerMinute(message);
-        showAlert("You have started work", "alert-success")
         showWorkNotification(); // Показываем уведомление о запуске работы
         updateWorkButtonsState();
         updateChatButtonsState();
