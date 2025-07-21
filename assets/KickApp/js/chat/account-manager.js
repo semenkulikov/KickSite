@@ -46,6 +46,11 @@ class AccountManager {
     
     this.updateControlsState();
     console.log(`[AccountManager] Auto switch ${enabled ? 'enabled' : 'disabled'}`);
+    
+    // Обновляем состояние кнопок после изменения режима
+    if (window.updateChatButtonsState) {
+      window.updateChatButtonsState();
+    }
   }
   
   // Включение/выключение рандомного режима
@@ -64,15 +69,13 @@ class AccountManager {
   startAutoSwitch() {
     if (this.autoSwitchInterval) {
       clearInterval(this.autoSwitchInterval);
+      this.autoSwitchInterval = null;
     }
-    
-    // Переключаем аккаунты каждые 5 секунд
-    this.autoSwitchInterval = setInterval(() => {
-      this.switchToNextAccount();
-    }, 5000);
     
     // Сразу переключаем на первый аккаунт
     this.switchToNextAccount();
+    
+    console.log('[AccountManager] Auto switch enabled - will switch after message send');
   }
   
   // Остановка автоматического переключения
@@ -123,6 +126,16 @@ class AccountManager {
     this.updateCurrentAccountInfo(nextAccount.login);
     
     console.log(`[AccountManager] Switched to account: ${nextAccount.login}`);
+  }
+  
+  // Переключение аккаунта после отправки сообщения
+  switchAfterMessageSend() {
+    if (!this.autoSwitchEnabled) {
+      return;
+    }
+    
+    console.log('[AccountManager] Switching account after message send');
+    this.switchToNextAccount();
   }
   
   // Получение активных аккаунтов
@@ -255,6 +268,7 @@ let accountManager;
 // Инициализация после загрузки DOM
 document.addEventListener('DOMContentLoaded', () => {
   accountManager = new AccountManager();
+  window.accountManager = accountManager; // Делаем доступным глобально
 });
 
 // Экспорт для использования в других модулях

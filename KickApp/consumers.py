@@ -122,8 +122,11 @@ async def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message:
     # Получаем информацию о канале
     logger.info(f"[SEND_MESSAGE] Getting channel info for: {channel}")
     try:
+        # URL-кодируем название канала для поддержки кириллицы
+        encoded_channel = urllib.parse.quote(channel)
+        
         channel_response = scraper.get(
-            f"https://kick.com/api/v2/channels/{channel}",
+            f"https://kick.com/api/v2/channels/{encoded_channel}",
             cookies=cookies,
             headers={
                 'Authorization': f'Bearer {session_decoded}',
@@ -131,7 +134,7 @@ async def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message:
                 'X-Requested-With': 'XMLHttpRequest',
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Referer': f'https://kick.com/{channel}',
+                'Referer': f'https://kick.com/{encoded_channel}',
                 'cluster': 'v2'
             }
         )

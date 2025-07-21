@@ -75,9 +75,9 @@ function kickSend() {
             "message": messageData,
           }));
           
-          // Показываем прогресс
-          showAlert(`📤 Sending from ${accountLogin}...`, "alert-info");
-        }
+                  // Показываем прогресс
+        showAlert(`📤 Sending from ${accountLogin}...`, "alert-info");
+      }
       } else {
         // Обычный режим - отправляем со всех выбранных аккаунтов
         selectedAccounts.forEach((accountElement, index) => {
@@ -126,6 +126,13 @@ function kickSend() {
           if (key.startsWith(messageId)) {
             console.warn(`[kickSend] Message timeout: ${msg.account} - ${msg.message}`);
             pendingMessages.delete(key);
+            
+            // Переключаем аккаунт при таймауте, если включено авто-переключение
+            if (window.accountManager && window.accountManager.autoSwitchEnabled) {
+              setTimeout(() => {
+                window.accountManager.switchAfterMessageSend();
+              }, 1000);
+            }
           }
         });
       }, 30000); // 30 секунд таймаут
@@ -152,6 +159,13 @@ function handleMessageResponse(responseData, isSuccess) {
     const alertMessage = `❌ Failed to send from ${account}: ${errorMessage}`;
     console.log(`showAlert (danger): ${alertMessage}`);
     showAlert(alertMessage, "alert-danger");
+  }
+  
+  // Переключаем аккаунт после любого ответа (успех или ошибка)
+  if (window.accountManager && window.accountManager.autoSwitchEnabled) {
+    setTimeout(() => {
+      window.accountManager.switchAfterMessageSend();
+    }, 1000); // Небольшая задержка для завершения обработки
   }
 }
 

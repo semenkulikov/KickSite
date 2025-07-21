@@ -92,9 +92,14 @@ function updateChatButtonsState() {
   const autoMessageCheckbox = document.getElementById('sendAutoMessageStatus');
   
   const hasSelectedAccounts = document.querySelectorAll('[data-account-selected="true"]').length > 0;
-  const canUseButtons = (window.workStatus || workStatus) && hasSelectedAccounts;
+  const hasActiveAccounts = document.querySelectorAll('.account[data-account-status="active"]').length > 0;
+  const autoSwitchEnabled = window.accountManager && window.accountManager.autoSwitchEnabled;
   
-  console.log('[updateChatButtonsState] workStatus:', window.workStatus || workStatus, 'hasSelectedAccounts:', hasSelectedAccounts, 'canUseButtons:', canUseButtons);
+  // Если включено авто-переключение, используем наличие активных аккаунтов
+  // Если выключено - используем наличие выбранных аккаунтов
+  const canUseButtons = (window.workStatus || workStatus) && (autoSwitchEnabled ? hasActiveAccounts : hasSelectedAccounts);
+  
+  console.log('[updateChatButtonsState] workStatus:', window.workStatus || workStatus, 'hasSelectedAccounts:', hasSelectedAccounts, 'hasActiveAccounts:', hasActiveAccounts, 'autoSwitchEnabled:', autoSwitchEnabled, 'canUseButtons:', canUseButtons);
   
   if (chatBtn) chatBtn.disabled = !canUseButtons;
   if (autoMessagesBtn) autoMessagesBtn.disabled = !canUseButtons;
