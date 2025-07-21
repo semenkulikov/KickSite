@@ -38,6 +38,12 @@ if (endWorkBtn) {
     "message": "End work",
   }));
     document.getElementById("buttonEndWork").disabled = true;
+    
+    // Сбрасываем AccountManager при остановке работы
+    if (window.accountManager) {
+      window.accountManager.reset();
+    }
+    
     updateWorkButtonsState();
 });
 }

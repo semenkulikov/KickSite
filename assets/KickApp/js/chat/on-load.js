@@ -3,6 +3,7 @@ import {changeViewChannel} from "./kick-channel";
 import {loadAutoMessagesData} from "./kick-auto-messages";
 import {getKickSocket} from "./kick-ws";
 import {updateChatButtonsState} from "./kick-work";
+import {AccountManager} from "./account-manager";
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log("DOM loaded")

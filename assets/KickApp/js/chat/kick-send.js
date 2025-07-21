@@ -40,44 +40,84 @@ function kickSend() {
       let sentCount = 0;
       let totalCount = selectedAccounts.length;
       
-      // Отправляем сообщения со всех выбранных аккаунтов
-      selectedAccounts.forEach((accountElement, index) => {
-        const accountLogin = accountElement.value;
-        const messageData = {
-          "channel": data.channel,
-          "account": accountLogin,
-          "message": data.message,
-          "auto": false,
-          "messageId": messageId,
-          "index": index
-        };
-        
-        console.log(`[kickSend] Sending message from account ${index + 1}/${selectedAccounts.length}: ${accountLogin}`);
-        console.log(`${accountLogin}: ${data.message}`);
-        
-        // Добавляем в отслеживание
-        pendingMessages.set(`${messageId}_${index}`, {
-          account: accountLogin,
-          message: data.message,
-          timestamp: Date.now()
+      // Проверяем, включено ли автоматическое переключение
+      const isAutoSwitchEnabled = window.accountManager && window.accountManager.autoSwitchEnabled;
+      
+      if (isAutoSwitchEnabled) {
+        // В режиме автоматического переключения отправляем только с текущего выбранного аккаунта
+        const currentSelectedAccount = document.querySelector('[data-account-selected="true"]');
+        if (currentSelectedAccount) {
+          const accountLogin = currentSelectedAccount.value;
+          const messageData = {
+            "channel": data.channel,
+            "account": accountLogin,
+            "message": data.message,
+            "auto": false,
+            "messageId": messageId,
+            "index": 0
+          };
+          
+          console.log(`[kickSend] Auto-switch mode: sending from ${accountLogin}`);
+          console.log(`${accountLogin}: ${data.message}`);
+          
+          // Добавляем в отслеживание
+          pendingMessages.set(`${messageId}_0`, {
+            account: accountLogin,
+            message: data.message,
+            timestamp: Date.now()
+          });
+          
+          messagesSent++;
+          addMessageToLogs(messageData);
+          
+          getKickSocket().send(JSON.stringify({
+            "type": "KICK_SEND_MESSAGE",
+            "message": messageData,
+          }));
+          
+          // Показываем прогресс
+          showAlert(`📤 Sending from ${accountLogin}...`, "alert-info");
+        }
+      } else {
+        // Обычный режим - отправляем со всех выбранных аккаунтов
+        selectedAccounts.forEach((accountElement, index) => {
+          const accountLogin = accountElement.value;
+          const messageData = {
+            "channel": data.channel,
+            "account": accountLogin,
+            "message": data.message,
+            "auto": false,
+            "messageId": messageId,
+            "index": index
+          };
+          
+          console.log(`[kickSend] Sending message from account ${index + 1}/${selectedAccounts.length}: ${accountLogin}`);
+          console.log(`${accountLogin}: ${data.message}`);
+          
+          // Добавляем в отслеживание
+          pendingMessages.set(`${messageId}_${index}`, {
+            account: accountLogin,
+            message: data.message,
+            timestamp: Date.now()
+          });
+          
+          messagesSent++;
+          addMessageToLogs(messageData);
+          
+          getKickSocket().send(JSON.stringify({
+            "type": "KICK_SEND_MESSAGE",
+            "message": messageData,
+          }));
         });
-        
-      messagesSent++;
-        addMessageToLogs(messageData);
-        
-        getKickSocket().send(JSON.stringify({
-          "type": "KICK_SEND_MESSAGE",
-          "message": messageData,
-      }));
-      });
 
-      // Показываем прогресс
-      showAlert(`📤 Sending ${totalCount} message(s)...`, "alert-info");
+        // Показываем прогресс
+        showAlert(`📤 Sending ${totalCount} message(s)...`, "alert-info");
+      }
 
       // Очищаем поле ввода только если элемент существует
       const inputMessageElement = document.getElementById('inputMessage');
       if (inputMessageElement) {
-      inputMessageElement.value = "";
+        inputMessageElement.value = "";
       }
       
       // Таймаут для очистки "зависших" сообщений
