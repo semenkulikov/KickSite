@@ -11,3 +11,4 @@ urllib3==2.5.0
 certifi==2025.6.15
 PySocks==1.7.1
 cloudscraper==1.2.71
+whitenoise==6.6.0
