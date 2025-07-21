@@ -2,6 +2,7 @@ import {showAlert} from "./alert";
 import {addMessageToLogs} from "./kick-input-logs";
 import {selectAccount} from "./kick-account";
 import {getKickSocket, workStatus} from "./kick-ws";
+import {isAutoSendingActive} from "./kick-auto-messages";
 
 let averageSendingPerMinuteId;
 let pendingMessages = new Map(); // Отслеживание ожидающих отправки сообщений
@@ -130,7 +131,10 @@ function countingSendingPerMinute(data) {
     totalMinutes = timeHoursLeft + timeMinutesLeft + timeSecondsLeft
 
     let messagesPerMinute = totalMinutes > 0 ? (messagesSent / totalMinutes).toFixed(2) : "0.00";
-    document.getElementById("averageSendingPerMinute").innerText = messagesPerMinute
+    // Не обновляем averageSendingPerMinute если авторассылка активна
+    if (!isAutoSendingActive) {
+      document.getElementById("averageSendingPerMinute").innerText = messagesPerMinute;
+    }
     // console.log(`Messages/minute: ${messagesPerMinute}`)
   }, 5000)
 }

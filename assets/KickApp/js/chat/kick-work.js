@@ -53,7 +53,7 @@ function workTimer(startTime) {
   let start = new Date(startTime);
 
   workTimerId = setInterval(function () {
-    if (workStatus) {
+    if (window.workStatus || workStatus) {
       let nowTime = new Date();
       let timeDiff = new Date(Math.abs(nowTime - start));
       document.getElementById("workTimer").innerHTML = timeDiff.toLocaleDateString('ru-RU', dateOptions).substr(10, );

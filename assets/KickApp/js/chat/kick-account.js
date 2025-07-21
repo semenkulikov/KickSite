@@ -7,52 +7,68 @@ const kickAccounts = document.getElementsByClassName('account__checkbox');
 function showAccounts(accounts) {
     console.log('[showAccounts] called with', accounts);
     const accountsContainer = document.getElementById("accounts");
+    
     // Если пришёл один аккаунт (инкрементальная подгрузка)
     if (accounts.length === 1) {
         const acc = accounts[0];
         // Проверяем, есть ли уже блок с этим id
         let existing = document.getElementById(`account-block-${acc.id}`);
-        let block = document.createElement("div");
-        block.className = "account-block account d-flex align-items-center gap-2 mb-2 p-2 rounded bg-dark";
-        block.setAttribute("data-account-status", acc.status);
-        block.id = `account-block-${acc.id}`;
-        // Аватар
-        let avatar = document.createElement("div");
-        avatar.className = "account-avatar me-2";
-        avatar.style = "width:32px;height:32px;border-radius:50%;background:#23232a;display:flex;align-items:center;justify-content:center;font-weight:bold;color:#fff;";
-        avatar.innerText = acc.login[0]?.toUpperCase() || "?";
-        block.appendChild(avatar);
-        // Логин
-        let login = document.createElement("span");
-        login.className = "account-login fw-bold";
-        login.innerText = acc.login;
-        block.appendChild(login);
-        // Статус
-        let badgeStatus = document.createElement("span");
-        badgeStatus.className = acc.status === 'active' ? "ms-2 text-success" : "ms-2 text-danger";
-        badgeStatus.innerHTML = acc.status === 'active' ? '✔️' : '❌';
-        block.appendChild(badgeStatus);
-        // Чекбокс
-        let input = document.createElement("input");
-        input.type = "checkbox";
-        input.className = "account__checkbox ms-2";
-        input.id = `account-${acc.id}`;
-        input.value = acc.login;
-        input.setAttribute("data-account-selected", "false");
-        if (acc.status !== 'active') input.disabled = true;
-        block.appendChild(input);
-        // Клик по блоку — выделяет аккаунт (только если активен)
-        block.addEventListener("click", function (e) {
-            if (acc.status === 'active') {
-                selectAccount(input.id);
-                updateChatButtonsState();
-            }
-        });
+        
         if (existing) {
-            accountsContainer.replaceChild(block, existing);
+            // Если аккаунт уже существует, только обновляем статус
+            existing.setAttribute("data-account-status", acc.status);
+            const checkbox = existing.querySelector('.account__checkbox');
+            const badgeStatus = existing.querySelector('.ms-2');
+            
+            if (checkbox) {
+                checkbox.disabled = acc.status !== 'active';
+            }
+            
+            if (badgeStatus) {
+                badgeStatus.className = acc.status === 'active' ? "ms-2 text-success" : "ms-2 text-danger";
+                badgeStatus.innerHTML = acc.status === 'active' ? '✔️' : '❌';
+            }
         } else {
+            // Если аккаунта нет, создаем новый
+            let block = document.createElement("div");
+            block.className = "account-block account d-flex align-items-center gap-2 mb-2 p-2 rounded bg-dark";
+            block.setAttribute("data-account-status", acc.status);
+            block.id = `account-block-${acc.id}`;
+            // Аватар
+            let avatar = document.createElement("div");
+            avatar.className = "account-avatar me-2";
+            avatar.style = "width:32px;height:32px;border-radius:50%;background:#23232a;display:flex;align-items:center;justify-content:center;font-weight:bold;color:#fff;";
+            avatar.innerText = acc.login[0]?.toUpperCase() || "?";
+            block.appendChild(avatar);
+            // Логин
+            let login = document.createElement("span");
+            login.className = "account-login fw-bold";
+            login.innerText = acc.login;
+            block.appendChild(login);
+            // Статус
+            let badgeStatus = document.createElement("span");
+            badgeStatus.className = acc.status === 'active' ? "ms-2 text-success" : "ms-2 text-danger";
+            badgeStatus.innerHTML = acc.status === 'active' ? '✔️' : '❌';
+            block.appendChild(badgeStatus);
+            // Чекбокс
+            let input = document.createElement("input");
+            input.type = "checkbox";
+            input.className = "account__checkbox ms-2";
+            input.id = `account-${acc.id}`;
+            input.value = acc.login;
+            input.setAttribute("data-account-selected", "false");
+            if (acc.status !== 'active') input.disabled = true;
+            block.appendChild(input);
+            // Клик по блоку — выделяет аккаунт (только если активен)
+            block.addEventListener("click", function (e) {
+                if (acc.status === 'active') {
+                    selectAccount(input.id);
+                    updateChatButtonsState();
+                }
+            });
             accountsContainer.appendChild(block);
         }
+        
         // Если хотя бы один активный аккаунт — обновить кнопки сразу
         if (acc.status === 'active') {
             updateWorkButtonsState();
@@ -62,7 +78,8 @@ function showAccounts(accounts) {
         if (uploading) uploading.remove();
         return;
     }
-    // Если массив — полная перерисовка
+    
+    // Если массив — полная перерисовка (только при первой загрузке)
     accountsContainer.innerHTML = "";
     if (!accounts.length) return;
     accounts.forEach((acc, idx) => {
@@ -104,7 +121,6 @@ function showAccounts(accounts) {
         });
         accountsContainer.appendChild(block);
     });
-    updateWorkButtonsState();
 }
 
 function awaitAccounts() {

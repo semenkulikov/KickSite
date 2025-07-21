@@ -6,6 +6,7 @@ import {showAlert} from "./alert";
 
 let intervalSendAutoMessageId;
 let intervalTimerSendAutoMessageId;
+let isAutoSendingActive = false; // Глобальная переменная для отслеживания состояния авторассылки
 
 if (document.getElementById("editAutoMessage")) {
 document.getElementById("editAutoMessage").addEventListener("click", function () {
@@ -14,6 +15,14 @@ document.getElementById("editAutoMessage").addEventListener("click", function ()
   loadAutoMessagesData();
 });
 }
+
+// Загружаем данные при старте страницы
+document.addEventListener('DOMContentLoaded', function() {
+  // Небольшая задержка, чтобы DOM полностью загрузился
+  setTimeout(function() {
+    loadAutoMessagesData();
+  }, 100);
+});
 
 if (document.getElementById("saveAutoMessages")) {
 document.getElementById("saveAutoMessages").addEventListener("click", function () {
@@ -37,9 +46,6 @@ document.getElementById('sendAutoMessageStatus').addEventListener('click', funct
 
   if (window.workStatus) {
     if (checkbox.checked) {
-      let autoMessageTextArea = document.getElementById("autoMessageTextArea");
-
-      let messages = autoMessageTextArea.value.split("\n").map((element) => element.trim()).filter((element) => element !== "");
       let elementSelectedChannel = document.getElementById("selectedChannel");
 
       if (elementSelectedChannel.dataset.status === "selected") {
@@ -48,75 +54,124 @@ document.getElementById('sendAutoMessageStatus').addEventListener('click', funct
         let accounts = document.getElementsByClassName("account__checkbox");
 
         if (accounts.length) {
-          if (messages.length) {
-            document.getElementById("editAutoMessage").disabled = true;
-            let frequency = parseInt(document.getElementById('frequency-send').innerText);
-            console.log("Click start new")
-
-            const dateOptions = {
-              year: '2-digit', month: '2-digit', day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-              timeZone: "UTC"
-            };
-
-            let intervalMs = 60000 / frequency; // Calculate interval
-            let timer = intervalMs;
-
-            intervalSendAutoMessageId = setInterval(function () {
-              const shuffled = [...accounts].sort(() => 0.5 - Math.random());
-              // Select only ONE random account
-              const selectedAccounts = shuffled.slice(0, 1);
-
-              $.each(selectedAccounts, function (index, value) {
-                if (!value || !value.value) {
-                  console.error('Invalid account value:', value);
-                  return; // skip this iteration
+          // Загружаем сообщения из базы данных
+          getAutoMessages().then((messages) => {
+            if (messages && messages.length) {
+              // Получаем частоту из базы данных
+              getFrequency().then((frequency) => {
+                let freq = frequency ? frequency.value : 1;
+                
+                // Принудительно обновляем отображение Messages/minutes
+                const averageSendingPerMinute = document.getElementById("averageSendingPerMinute");
+                if (averageSendingPerMinute) {
+                  averageSendingPerMinute.innerText = freq;
                 }
-                let accountLogin = value.value
-                let data = {
-                    "channel": channel,
-                    "account": accountLogin,
-                    "message": messages[~~(Math.random() * messages.length)],
-                    "auto": true
+                
+                const editAutoMessageBtn = document.getElementById("editAutoMessage");
+                if (editAutoMessageBtn) {
+                  editAutoMessageBtn.disabled = true;
                 }
-                addMessageToLogs(data);
-                getKickSocket().send(JSON.stringify({
-                    "type": "KICK_SEND_MESSAGE",
-                    "message": data,
-                }));
+                console.log("Click start new")
+
+                // Показываем алерт о начале авторассылки
+                showAlert(`Automatic message sending started! Frequency: ${freq} messages/min`, "alert-success");
+
+                // Устанавливаем флаг авторассылки
+                isAutoSendingActive = true;
+
+                const dateOptions = {
+                  year: '2-digit', month: '2-digit', day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  timeZone: "UTC"
+                };
+
+                let intervalMs = Math.floor(60000 / freq); // Calculate interval in milliseconds
+                let timer = intervalMs;
+
+                console.log(`Starting auto-send with frequency: ${freq} messages/min, interval: ${intervalMs}ms`);
+
+                intervalSendAutoMessageId = setInterval(function () {
+                  // Получаем только выбранные аккаунты
+                  const selectedAccounts = document.querySelectorAll('.account__checkbox:checked');
+                  
+                  if (selectedAccounts.length > 0 && messages && messages.length > 0) {
+                    // Выбираем случайный выбранный аккаунт
+                    const randomIndex = Math.floor(Math.random() * selectedAccounts.length);
+                    const selectedAccount = selectedAccounts[randomIndex];
+                    
+                    if (selectedAccount && selectedAccount.value) {
+                      let accountLogin = selectedAccount.value;
+                      // Выбираем случайное сообщение из массива
+                      let randomMessage = messages[Math.floor(Math.random() * messages.length)];
+                      let data = {
+                          "channel": channel,
+                          "account": accountLogin,
+                          "message": randomMessage,
+                          "auto": true
+                      }
+                      // Возвращаем логи в глобальные
+                      addMessageToLogs(data);
+                      getKickSocket().send(JSON.stringify({
+                          "type": "KICK_SEND_MESSAGE",
+                          "message": data,
+                      }));
+                    }
+                  }
+                  
+                  // Сбрасываем таймер на полный интервал
+                  timer = intervalMs;
+                }, intervalMs); // Use dynamic interval
+
+                intervalTimerSendAutoMessageId = setInterval(function () {
+                  const timerElement = document.getElementById("timerAutoMessage");
+                  if (timerElement) {
+                    // Показываем обратный отсчет в формате MM:SS
+                    const minutes = Math.floor(timer / 60000);
+                    const seconds = Math.floor((timer % 60000) / 1000);
+                    timerElement.innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                  }
+                  timer -= 1000;
+                }, 1000)
+              }).catch((error) => {
+                console.error('Error loading frequency:', error);
+                $("#sendAutoMessageStatus").prop('checked', false);
+                showAlert("Error loading frequency settings", "alert-danger");
               });
-              selectAutoSendAccounts(selectedAccounts)
-              timer = intervalMs; // Reset timer to new interval
-            }, intervalMs); // Use dynamic interval
-
-            intervalTimerSendAutoMessageId = setInterval(function () {
-              let currentTimer = new Date(timer).toLocaleString('ru-RU', dateOptions)
-              document.getElementById("timerAutoMessage").innerText = currentTimer.substr(9, )
-              timer -= 1000;
-            }, 1000)
-
-          } else {
+            } else {
+              $("#sendAutoMessageStatus").prop('checked', false);
+              console.log("You don't have any messages to send automatically")
+              showAlert("You don't have any messages to send automatically", "alert-danger")
+            }
+          }).catch((error) => {
+            console.error('Error loading messages:', error);
             $("#sendAutoMessageStatus").prop('checked', false);
-            console.log("You don't have any messages to send automatically")
-            showAlert("You don't have any messages to send automatically", "alert-danger")
-          }
+            showAlert("Error loading auto messages", "alert-danger");
+          });
         } else {
           $("#sendAutoMessageStatus").prop('checked', false);
           console.log("You don't have any uploaded accounts")
           showAlert("You don't have any uploaded accounts", "alert-danger")
-          }
+        }
       } else {
         $("#sendAutoMessageStatus").prop('checked', false);
         console.log("You have not selected a channel");
         showAlert("You have not selected a channel", "alert-danger")
       }
     } else {
-      document.getElementById("editAutoMessage").disabled = false;
+      const editAutoMessageBtn = document.getElementById("editAutoMessage");
+      if (editAutoMessageBtn) {
+        editAutoMessageBtn.disabled = false;
+      }
       console.log("Click stop new")
       clearInterval(intervalSendAutoMessageId);
       clearInterval(intervalTimerSendAutoMessageId);
+      
+      // Показываем алерт о прекращении авторассылки
+      showAlert("Automatic message sending stopped", "alert-warning");
+      // Сбрасываем флаг авторассылки
+      isAutoSendingActive = false;
     }
   } else {
     $("#sendAutoMessageStatus").prop('checked', false);
@@ -126,18 +181,43 @@ document.getElementById('sendAutoMessageStatus').addEventListener('click', funct
 }
 
 function loadAutoMessagesData() {
+  console.log('Loading auto messages data...');
+  
   getFrequency().then((frequency) => {
-    if (frequency) {
+    console.log('Frequency loaded:', frequency);
+    if (frequency && frequency.value) {
       changeViewFrequency(frequency.value);
+      // Обновляем отображение Messages/minutes при загрузке
+      const averageSendingPerMinute = document.getElementById("averageSendingPerMinute");
+      if (averageSendingPerMinute) {
+        averageSendingPerMinute.innerText = frequency.value;
+        console.log('Set averageSendingPerMinute to:', frequency.value);
+      }
+    } else {
+      // Если данных нет, устанавливаем значение по умолчанию
+      const averageSendingPerMinute = document.getElementById("averageSendingPerMinute");
+      if (averageSendingPerMinute) {
+        averageSendingPerMinute.innerText = "1";
+        console.log('Set averageSendingPerMinute to default: 1');
+      }
     }
   }).catch((error) => {
-    console.error('Error:', error);
+    console.error('Error loading frequency:', error);
+    // При ошибке устанавливаем значение по умолчанию
+    const averageSendingPerMinute = document.getElementById("averageSendingPerMinute");
+    if (averageSendingPerMinute) {
+      averageSendingPerMinute.innerText = "1";
+      console.log('Set averageSendingPerMinute to default after error: 1');
+    }
   });
 
   getAutoMessages().then((messages) => {
-    changeViewAutoMessages(messages);
+    console.log('Messages loaded:', messages);
+    if (messages && messages.length > 0) {
+      changeViewAutoMessages(messages);
+    }
   }).catch((error) => {
-    console.error('Error:', error);
+    console.error('Error loading messages:', error);
   });
 }
 
@@ -155,38 +235,62 @@ function changeViewFrequency(frequency) {
   const freqInput = document.getElementById("autoMessageFrequencyInput");
   const freqSend = document.getElementById("frequency-send");
   if (freqInput) freqInput.value = frequency;
-  if (freqSend) freqSend.innerText = frequency;
+  if (freqSend) freqSend.value = frequency;
 }
 
 function changeViewAutoMessages(messages) {
   const autoMessageTextArea = document.getElementById("autoMessageTextArea");
-  messages.forEach((message) => {
-    autoMessageTextArea.value = autoMessageTextArea.value + message + "\n"
-  });
+  if (autoMessageTextArea) {
+    // Очищаем textarea перед добавлением сообщений
+    autoMessageTextArea.value = '';
+    messages.forEach((message) => {
+      autoMessageTextArea.value = autoMessageTextArea.value + message + "\n"
+    });
+  }
 }
 
 function saveAutoMessages() {
   const autoMessageTextArea = document.getElementById("autoMessageTextArea");
   const frequencySend = document.getElementById("frequency-send");
 
+  if (!autoMessageTextArea || !frequencySend) {
+    showAlert("Error: Required elements not found", "alert-danger");
+    return;
+  }
+
   let messages = autoMessageTextArea.value.split("\n").map((element) => element.trim()).filter((element) => element !== "");
   if (messages.length) {
-    addOrUpdateFrequencyDB(frequencySend.innerText);
+    addOrUpdateFrequencyDB(frequencySend.value);
 
-    getAutoMessages().then((result) => {
-      // console.log(result);
+    // Сначала очищаем старые сообщения, потом добавляем новые
+    clearAllAutoMessages().then(() => {
+      addAutoMessages(messages).then((result) => {
+        showAlert("Messages are saved", "alert-success")
+        console.log("Messages are saved");
+        
+        // Обновляем отображение Messages/minutes
+        const averageSendingPerMinute = document.getElementById("averageSendingPerMinute");
+        if (averageSendingPerMinute) {
+          averageSendingPerMinute.innerText = frequencySend.value;
+        }
+
+        setTimeout(function() { 
+          const modal = bootstrap.Modal.getInstance(document.getElementById('editAutoMessageModal'));
+          if (modal) {
+            modal.hide();
+          }
+        }, 2);
+      }).catch((error) => {
+        console.error('Error adding messages:', error);
+        setTimeout(function() { 
+          const modal = bootstrap.Modal.getInstance(document.getElementById('editAutoMessageModal'));
+          if (modal) {
+            modal.hide();
+          }
+        }, 2);
+      });
     }).catch((error) => {
-      console.error('Error:', error);
-    });
-
-    addAutoMessages(messages).then((result) => {
-      showAlert("Messages are saved", "alert-success")
-      console.log("Messages are saved");
-
-      setTimeout(function() { $('#editAutoMessageModal').modal('hide'); }, 2);
-    }).catch((error) => {
-      console.error('Error:', error);
-      setTimeout(function() { $('#editAutoMessageModal').modal('hide'); }, 2);
+      console.error('Error clearing messages:', error);
     });
 
   } else {
@@ -195,4 +299,4 @@ function saveAutoMessages() {
   }
 }
 
-export {intervalSendAutoMessageId, intervalTimerSendAutoMessageId, loadAutoMessagesData}
+export {intervalSendAutoMessageId, intervalTimerSendAutoMessageId, loadAutoMessagesData, isAutoSendingActive}
