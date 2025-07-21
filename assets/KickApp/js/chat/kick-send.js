@@ -102,12 +102,16 @@ function kickSend() {
 // Функция для обработки ответов от сервера
 function handleMessageResponse(responseData, isSuccess) {
   const account = responseData.account || "unknown";
-  const message = responseData.text || responseData.message || "no message";
-
+  
   if (isSuccess) {
+    const message = responseData.text || responseData.message || "no message";
     showAlert(`✅ Message sent from ${account}: ${message}`, "alert-success");
   } else {
-    showAlert(`❌ Failed to send from ${account}: ${message}`, "alert-danger");
+    // Показываем точно то, что присылает Kick.com
+    const errorMessage = responseData.message || "Unknown error";
+    const alertMessage = `❌ Failed to send from ${account}: ${errorMessage}`;
+    console.log(`showAlert (danger): ${alertMessage}`);
+    showAlert(alertMessage, "alert-danger");
   }
 }
 

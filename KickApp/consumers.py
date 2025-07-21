@@ -32,9 +32,52 @@ async def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message:
     logger.debug(f"[SEND_MESSAGE] token={token}")
     logger.debug(f"[SEND_MESSAGE] session_token={session_token}")
     
-    # Пока что игнорируем прокси, так как cloudscraper не работает с SOCKS5
+    # Поддержка HTTP прокси для cloudscraper
+    proxy_config = None
     if proxy_url:
-        logger.warning(f"[SEND_MESSAGE] Proxy {proxy_url} ignored - cloudscraper doesn't support SOCKS5 properly")
+        if proxy_url.startswith("socks5://"):
+            # Конвертируем SOCKS5 в HTTP для cloudscraper
+            try:
+                # Извлекаем данные из SOCKS5 URL: socks5://user:pass@host:port
+                proxy_parts = proxy_url.replace("socks5://", "").split("@")
+                if len(proxy_parts) == 2:
+                    auth, server = proxy_parts
+                    username, password = auth.split(":")
+                    host, port = server.split(":")
+                    
+                    # Создаем HTTP прокси конфигурацию
+                    proxy_config = {
+                        'http': f"http://{username}:{password}@{host}:{port}",
+                        'https': f"http://{username}:{password}@{host}:{port}"
+                    }
+                    logger.info(f"[SEND_MESSAGE] Converted SOCKS5 to HTTP proxy: {host}:{port}")
+                else:
+                    logger.warning(f"[SEND_MESSAGE] Invalid SOCKS5 proxy format: {proxy_url}")
+            except Exception as e:
+                logger.error(f"[SEND_MESSAGE] Error converting SOCKS5 proxy: {e}")
+        elif proxy_url.startswith("http://") or proxy_url.startswith("https://"):
+            # Уже HTTP прокси
+            proxy_config = {
+                'http': proxy_url,
+                'https': proxy_url
+            }
+            logger.info(f"[SEND_MESSAGE] Using HTTP proxy: {proxy_url}")
+        else:
+            # Пробуем парсить как host:port:user:pass формат
+            try:
+                parts = proxy_url.split(':')
+                if len(parts) == 4:
+                    host, port, username, password = parts
+                    http_proxy = f"http://{username}:{password}@{host}:{port}"
+                    proxy_config = {
+                        'http': http_proxy,
+                        'https': http_proxy
+                    }
+                    logger.info(f"[SEND_MESSAGE] Parsed proxy format: {host}:{port}")
+                else:
+                    logger.warning(f"[SEND_MESSAGE] Unknown proxy format: {proxy_url}")
+            except Exception as e:
+                logger.error(f"[SEND_MESSAGE] Error parsing proxy: {e}")
     
     # ИСПРАВЛЕНИЕ: Используем token вместо session_token для формирования куков
     # token содержит формат USERID|TOKEN, который нужен для куков
@@ -70,8 +113,11 @@ async def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message:
             name, value = cookie.strip().split('=', 1)
             cookies[name] = value
     
-    # Создаем scraper
+    # Создаем scraper с прокси если настроен
     scraper = cloudscraper.create_scraper()
+    if proxy_config:
+        logger.info(f"[SEND_MESSAGE] Setting proxy config: {proxy_config}")
+        scraper.proxies = proxy_config
     
     # Получаем информацию о канале
     logger.info(f"[SEND_MESSAGE] Getting channel info for: {channel}")
@@ -140,7 +186,17 @@ async def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message:
         else:
             logger.error(f"[SEND_MESSAGE] ❌ failed: {response.status_code}")
             logger.error(f"[SEND_MESSAGE] {response.text}")
-            return False
+            
+            # Парсим ответ от Kick.com для показа пользователю
+            try:
+                error_data = response.json()
+                error_message = error_data.get('status', {}).get('message', 'Unknown error')
+                logger.error(f"[SEND_MESSAGE] Kick.com error: {error_message}")
+                # Возвращаем ошибку с текстом для показа в алерте
+                return f"Kick.com error: {error_message}"
+            except:
+                logger.error(f"[SEND_MESSAGE] Failed to parse error response")
+                return f"HTTP {response.status_code}: {response.text[:100]}"
             
     except Exception as e:
         logger.error(f"[SEND_MESSAGE] Exception: {e}")
@@ -349,7 +405,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 return
 
             # Отправляем сообщение через cloudscraper
-            success = await send_kick_message_cloudscraper(
+            result = await send_kick_message_cloudscraper(
                 chatbot_id=account.id,
                 channel=channel,
                 message=message_text,
@@ -358,7 +414,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 proxy_url=proxy_url
             )
             
-            if success:
+            if result is True:
                 success_msg = f'✅ Message sent successfully from {account_login} to {channel}: "{message_text}"'
                 print(f"[SEND_MESSAGE] {success_msg}")
                 await self.send(text_data=json.dumps({
@@ -369,7 +425,8 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                     'text': message_text
                 }))
             else:
-                error_msg = f'❌ Failed to send message from {account_login} to {channel}: "{message_text}"'
+                # result содержит текст ошибки
+                error_msg = f'❌ Failed to send message from {account_login} to {channel}: {result}'
                 print(f"[SEND_MESSAGE] {error_msg}")
                 await self.send(text_data=json.dumps({
                     'type': 'KICK_ERROR',
