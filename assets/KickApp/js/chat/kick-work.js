@@ -11,6 +11,17 @@ if (startWorkBtn) {
   console.log("Start work");
     // Показываем алерт сразу при нажатии
     showAlert("You have started work", "alert-success");
+    
+    // Устанавливаем workStatus = true сразу
+    import('./kick-ws').then(module => {
+      module.workStatus = true;
+      updateWorkButtonsState();
+      updateChatButtonsState();
+    });
+    
+    // Показываем уведомление о работе сразу
+    showWorkNotification();
+    
     getKickSocket().send(JSON.stringify({
       "type": "KICK_START_WORK",
     "message": "Start work",
