@@ -36,30 +36,25 @@ async def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message:
     if proxy_url:
         logger.warning(f"[SEND_MESSAGE] Proxy {proxy_url} ignored - cloudscraper doesn't support SOCKS5 properly")
     
-    # Извлекаем данные точно как в рабочем коде
-    # В рабочем коде session_token содержит USERID|TOKEN
-    session_raw = f"{chatbot_id}|{token.split('|')[1] if '|' in token else token}"
-    if not session_raw:
-        logger.error("[SEND_MESSAGE] No session_token provided")
+    # ИСПРАВЛЕНИЕ: Используем token вместо session_token для формирования куков
+    # token содержит формат USERID|TOKEN, который нужен для куков
+    # session_token зашифрован в формате Laravel и не подходит для прямого использования
+    if not token or '|' not in token:
+        logger.error("[SEND_MESSAGE] No valid token provided (should be in format USERID|TOKEN)")
         return False
     
-    # Декодируем session_token для Bearer токена
+    # Извлекаем данные из token (формат: USERID|TOKEN)
+    user_id, token_part = token.split('|', 1)
+    session_raw = token  # Используем весь token как session_token
+    xsrf_token = token_part  # XSRF-TOKEN это вторая часть после |
+    
+    # Декодируем session_token для Bearer токена (как в оригинальном скрипте)
     session_decoded = urllib.parse.unquote(session_raw)
     
-    # Извлекаем XSRF-TOKEN из token точно как в рабочем коде
-    # В рабочем коде XSRF-TOKEN берется из второй части после | в token
-    xsrf_token = None
-    if '|' in token:
-        xsrf_token = token.split('|')[1] if len(token.split('|')) > 1 else None
-    
-    # Формируем cookie строку точно как в рабочем коде
+    # Формируем cookie строку
     cookie_parts = []
-    if session_raw:
-        # session_token содержит USERID|TOKEN
-        cookie_parts.append(f"session_token={session_raw}")
-    if xsrf_token:
-        # XSRF-TOKEN тоже URL-encoded
-        cookie_parts.append(f"XSRF-TOKEN={xsrf_token}")
+    cookie_parts.append(f"session_token={session_raw}")
+    cookie_parts.append(f"XSRF-TOKEN={xsrf_token}")
     
     cookie_string = "; ".join(cookie_parts)
     
@@ -68,86 +63,87 @@ async def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message:
     logger.debug(f"[SEND_MESSAGE] SESSION_DECODED: {session_decoded}")
     logger.debug(f"[SEND_MESSAGE] Cookie string: {cookie_string}")
     
-    # Создаем cloudscraper точно как в рабочем коде
-    S = cloudscraper.create_scraper()
-    S.headers.update({
-        "cookie": cookie_string,
-        "user-agent": "Mozilla/5.0"
-    })
+    # Парсим куки
+    cookies = {}
+    for cookie in cookie_string.split(';'):
+        if '=' in cookie:
+            name, value = cookie.strip().split('=', 1)
+            cookies[name] = value
     
+    # Создаем scraper
+    scraper = cloudscraper.create_scraper()
+    
+    # Получаем информацию о канале
+    logger.info(f"[SEND_MESSAGE] Getting channel info for: {channel}")
     try:
-        # Получаем chatroom_id точно как в рабочем коде
-        logger.info(f"[SEND_MESSAGE] Getting channel info for: {channel}")
-        response = S.get(f"https://kick.com/api/v2/channels/{channel}", timeout=10)
-        logger.debug(f"[SEND_MESSAGE] GET {response.url} status={response.status_code}")
+        channel_response = scraper.get(
+            f"https://kick.com/api/v2/channels/{channel}",
+            cookies=cookies,
+            headers={
+                'Authorization': f'Bearer {session_decoded}',
+                'X-XSRF-TOKEN': xsrf_token,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Referer': f'https://kick.com/{channel}',
+                'cluster': 'v2'
+            }
+        )
+        logger.debug(f"[SEND_MESSAGE] GET https://kick.com/api/v2/channels/{channel} status={channel_response.status_code}")
         
-        if response.status_code != 200:
-            logger.error(f"[SEND_MESSAGE] Channel lookup failed: {response.status_code} {response.text[:400]}")
+        if channel_response.status_code != 200:
+            logger.error(f"[SEND_MESSAGE] Channel lookup failed: {channel_response.status_code} {channel_response.text}")
             return False
         
-        chat_id = response.json()["chatroom"]["id"]
-        logger.info(f"[SEND_MESSAGE] Got chatroom_id: {chat_id}")
+        channel_data = channel_response.json()
+        chatroom_id = channel_data.get('chatroom', {}).get('id')
         
-    except Exception as e:
-        logger.error(f"[SEND_MESSAGE] Could not fetch channel info: {e}")
-        return False
-    
-    # Отправляем сообщение точно как в рабочем коде
-    url = f"https://kick.com/api/v2/messages/send/{chat_id}"
-    
-    headers = {
-        "Authorization": f"Bearer {session_decoded}",
-        "X-XSRF-TOKEN": xsrf_token if xsrf_token else "",  # still URL-encoded!
-        "X-Requested-With": "XMLHttpRequest",
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Referer": f"https://kick.com/{channel}",
-        "cluster": "v2",                      # Kick's front-end sends this
-    }
-    
-    payload = {
-        "content": message,
-        "type": "message",
-        "message_ref": str(int(time.time() * 1000))  # ms epoch
-    }
-    
-    logger.debug(f"[SEND_MESSAGE] Sending POST to: {url}")
-    logger.debug(f"[SEND_MESSAGE] Headers: {headers}")
-    logger.debug(f"[SEND_MESSAGE] Payload: {payload}")
-    
-    try:
-        r = S.post(url, headers=headers, json=payload, timeout=10)
-        logger.debug(f"[SEND_MESSAGE] POST {url} status={r.status_code}")
-        logger.debug(f"[SEND_MESSAGE] Response content: {r.text}")
-
-        if r.status_code == 201:
+        if not chatroom_id:
+            logger.error(f"[SEND_MESSAGE] No chatroom_id found in response: {channel_data}")
+            return False
+        
+        logger.info(f"[SEND_MESSAGE] Got chatroom_id: {chatroom_id}")
+        
+        # Отправляем сообщение
+        message_ref = str(int(time.time() * 1000))
+        payload = {
+            'content': message,
+            'type': 'message',
+            'message_ref': message_ref
+        }
+        
+        logger.debug(f"[SEND_MESSAGE] Sending POST to: https://kick.com/api/v2/messages/send/{chatroom_id}")
+        logger.debug(f"[SEND_MESSAGE] Headers: {dict(scraper.headers)}")
+        logger.debug(f"[SEND_MESSAGE] Payload: {payload}")
+        
+        response = scraper.post(
+            f"https://kick.com/api/v2/messages/send/{chatroom_id}",
+            cookies=cookies,
+            headers={
+                'Authorization': f'Bearer {session_decoded}',
+                'X-XSRF-TOKEN': xsrf_token,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Referer': f'https://kick.com/{channel}',
+                'cluster': 'v2'
+            },
+            json=payload
+        )
+        
+        logger.debug(f"[SEND_MESSAGE] POST https://kick.com/api/v2/messages/send/{chatroom_id} status={response.status_code}")
+        logger.debug(f"[SEND_MESSAGE] Response content: {response.text}")
+        
+        if response.status_code == 200:
             logger.info(f"[SEND_MESSAGE] ✓ sent: {message}")
             return True
-        elif r.status_code == 200:
-            try:
-                response_json = r.json()
-                if response_json.get("message") == []: # Check if "message" key exists and its value is an empty list
-                    logger.error(f"[SEND_MESSAGE] ❌ failed: empty response (возможно, требуется подписка/фоллов)")
-                    logger.error(f"[SEND_MESSAGE] Response: {r.text}")
-                    return False
-                elif "FOLLOWERS_ONLY_ERROR" in r.text: # Still keep text check for this specific error
-                    logger.error(f"[SEND_MESSAGE] ❌ failed: FOLLOWERS_ONLY_ERROR (требуется подписка/фоллов)")
-                    logger.error(f"[SEND_MESSAGE] Response: {r.text}")
-                    return False
-                else:
-                    logger.info(f"[SEND_MESSAGE] ✓ sent: {message}")
-                    return True
-            except json.JSONDecodeError:
-                logger.error(f"[SEND_MESSAGE] ❌ failed: non-JSON 200 response (возможно, требуется подписка/фоллов)")
-                logger.error(f"[SEND_MESSAGE] Response: {r.text}")
-                return False
         else:
-            logger.error(f"[SEND_MESSAGE] ❌ failed: {r.status_code}")
-            logger.error(f"[SEND_MESSAGE] Response: {r.text[:400]}")
+            logger.error(f"[SEND_MESSAGE] ❌ failed: {response.status_code}")
+            logger.error(f"[SEND_MESSAGE] {response.text}")
             return False
-
+            
     except Exception as e:
-        logger.error(f"[SEND_MESSAGE] Failed to send message: {e}")
+        logger.error(f"[SEND_MESSAGE] Exception: {e}")
         return False
 
 
