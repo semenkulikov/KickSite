@@ -137,6 +137,10 @@ const socket = new WebSocket(endpoint);
       case 'KICK_MESSAGE_SENT':
         handleMessageResponse(data, true);
         break;
+        
+      case 'KICK_SEND_MESSAGE':
+        handleMessageResponse(data, true);
+        break;
       case 'KICK_ERROR':
         handleMessageResponse(data, false);
         break;
