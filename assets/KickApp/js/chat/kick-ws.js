@@ -3,7 +3,7 @@ import {showAccounts, awaitAccounts, showNoAccounts} from "./kick-account";
 import {showAlert} from "./alert";
 import {workTimer, workTimerId, updateWorkButtonsState, updateChatButtonsState, showWorkNotification, hideWorkNotification} from "./kick-work";
 import {countingSendingPerMinute, averageSendingPerMinuteId, handleMessageResponse} from "./kick-send"
-import {intervalSendAutoMessageId, intervalTimerSendAutoMessageId} from "./kick-auto-messages"
+import {intervalSendAutoMessageId, intervalTimerSendAutoMessageId, startAutoMessageSending, stopAutoMessageSending} from "./kick-auto-messages"
 
 let _kickSocket = null;
 let _kickSocketInitialized = false;
@@ -103,6 +103,8 @@ const socket = new WebSocket(endpoint);
         console.log('[KICK-WS] KICK_START_WORK received');
         countingSendingPerMinute(message);
         workTimer(message["startWorkTime"])
+        // Запускаем авторассылку если она активна
+        startAutoMessageSending();
         break;
       case 'KICK_END_WORK':
         workStatus = false;
@@ -111,13 +113,8 @@ const socket = new WebSocket(endpoint);
         hideWorkNotification(); // Скрываем уведомление о работе
         clearInterval(workTimerId);
         clearInterval(averageSendingPerMinuteId);
-        // Stop auto messages if running
-        if (intervalSendAutoMessageId) {
-          clearInterval(intervalSendAutoMessageId);
-        }
-        if (intervalTimerSendAutoMessageId) {
-          clearInterval(intervalTimerSendAutoMessageId);
-        }
+        // Останавливаем авторассылку
+        stopAutoMessageSending();
         // Turn off auto message sending checkbox
         const autoMessageCheckbox = document.getElementById('sendAutoMessageStatus');
         if (autoMessageCheckbox.checked) {

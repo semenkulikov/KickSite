@@ -7,6 +7,7 @@ import {showAlert} from "./alert";
 let intervalSendAutoMessageId;
 let intervalTimerSendAutoMessageId;
 let isAutoSendingActive = false; // Глобальная переменная для отслеживания состояния авторассылки
+let autoMessageStartTime = null; // Время начала авторассылки
 
 if (document.getElementById("editAutoMessage")) {
 document.getElementById("editAutoMessage").addEventListener("click", function () {
@@ -41,7 +42,7 @@ document.getElementById("saveAutoMessages").addEventListener("click", function (
 }
 
 if (document.getElementById('sendAutoMessageStatus')) {
-document.getElementById('sendAutoMessageStatus').addEventListener('click', function () {
+document.getElementById('sendAutoMessageStatus').addEventListener("click", function () {
   const checkbox = document.getElementById('sendAutoMessageStatus');
 
   if (window.workStatus) {
@@ -79,13 +80,8 @@ document.getElementById('sendAutoMessageStatus').addEventListener('click', funct
                 // Устанавливаем флаг авторассылки
                 isAutoSendingActive = true;
 
-                const dateOptions = {
-                  year: '2-digit', month: '2-digit', day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
-                  timeZone: "UTC"
-                };
+                // Сохраняем время начала авторассылки
+                autoMessageStartTime = Date.now();
 
                 let intervalMs = Math.floor(60000 / freq); // Calculate interval in milliseconds
                 let timer = intervalMs;
@@ -126,13 +122,14 @@ document.getElementById('sendAutoMessageStatus').addEventListener('click', funct
 
                 intervalTimerSendAutoMessageId = setInterval(function () {
                   const timerElement = document.getElementById("timerAutoMessage");
-                  if (timerElement) {
-                    // Показываем обратный отсчет в формате MM:SS
-                    const minutes = Math.floor(timer / 60000);
-                    const seconds = Math.floor((timer % 60000) / 1000);
+                  if (timerElement && autoMessageStartTime) {
+                    // Показываем время работы авторассылки (не обратный отсчет)
+                    const now = Date.now();
+                    const elapsed = now - autoMessageStartTime;
+                    const minutes = Math.floor(elapsed / 60000);
+                    const seconds = Math.floor((elapsed % 60000) / 1000);
                     timerElement.innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
                   }
-                  timer -= 1000;
                 }, 1000)
               }).catch((error) => {
                 console.error('Error loading frequency:', error);
@@ -172,12 +169,40 @@ document.getElementById('sendAutoMessageStatus').addEventListener('click', funct
       showAlert("Automatic message sending stopped", "alert-warning");
       // Сбрасываем флаг авторассылки
       isAutoSendingActive = false;
+      autoMessageStartTime = null;
     }
   } else {
     $("#sendAutoMessageStatus").prop('checked', false);
     showAlert("You haven't started work. Click on the \"Start work\" button", "alert-danger")
   }
 });
+}
+
+// Функция для запуска авторассылки при получении KICK_START_WORK
+function startAutoMessageSending() {
+  const checkbox = document.getElementById('sendAutoMessageStatus');
+  if (checkbox && checkbox.checked && isAutoSendingActive) {
+    // Авторассылка уже настроена, просто запускаем таймер
+    autoMessageStartTime = Date.now();
+  }
+}
+
+// Функция для остановки авторассылки при получении KICK_END_WORK
+function stopAutoMessageSending() {
+  clearInterval(intervalSendAutoMessageId);
+  clearInterval(intervalTimerSendAutoMessageId);
+  isAutoSendingActive = false;
+  autoMessageStartTime = null;
+  
+  const checkbox = document.getElementById('sendAutoMessageStatus');
+  if (checkbox) {
+    checkbox.checked = false;
+  }
+  
+  const editAutoMessageBtn = document.getElementById("editAutoMessage");
+  if (editAutoMessageBtn) {
+    editAutoMessageBtn.disabled = false;
+  }
 }
 
 function loadAutoMessagesData() {
@@ -299,4 +324,4 @@ function saveAutoMessages() {
   }
 }
 
-export {intervalSendAutoMessageId, intervalTimerSendAutoMessageId, loadAutoMessagesData, isAutoSendingActive}
+export {intervalSendAutoMessageId, intervalTimerSendAutoMessageId, loadAutoMessagesData, isAutoSendingActive, startAutoMessageSending, stopAutoMessageSending}

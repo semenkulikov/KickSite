@@ -1,7 +1,16 @@
 function addMessageToLogs(data) {
     const textAreaInputLogs = document.getElementById("inputLogs");
 
-    let message = `${data.account}${data.auto ? '(auto)' : ''}: ${data.message}`
+    // Создаем временную метку
+    const now = new Date();
+    const timestamp = now.toLocaleTimeString('ru-RU', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    
+    // Формируем сообщение с временной меткой и каналом
+    let message = `[${timestamp}] ${data.account}${data.auto ? '(auto)' : ''} → ${data.channel}: ${data.message}`;
     console.log(message)
     
     // Проверяем, существует ли элемент перед обращением к его свойствам
