@@ -34,7 +34,7 @@ function kickSend() {
     const selectedAccounts = document.querySelectorAll('[data-account-selected="true"]');
     console.log(`[kickSend] Found ${selectedAccounts.length} selected accounts`);
 
-    if(workStatus) {
+    if (window.workStatus) {
       const messageId = Date.now(); // Уникальный ID для этой группы сообщений
       let sentCount = 0;
       let totalCount = selectedAccounts.length;

@@ -35,7 +35,7 @@ if (document.getElementById('sendAutoMessageStatus')) {
 document.getElementById('sendAutoMessageStatus').addEventListener('click', function () {
   const checkbox = document.getElementById('sendAutoMessageStatus');
 
-  if (workStatus) {
+  if (window.workStatus) {
     if (checkbox.checked) {
       let autoMessageTextArea = document.getElementById("autoMessageTextArea");
 

@@ -13,11 +13,9 @@ if (startWorkBtn) {
     showAlert("You have started work", "alert-success");
     
     // Устанавливаем workStatus = true сразу
-    import('./kick-ws').then(module => {
-      module.workStatus = true;
-      updateWorkButtonsState();
-      updateChatButtonsState();
-    });
+    window.workStatus = true;
+    updateWorkButtonsState();
+    updateChatButtonsState();
     
     // Показываем уведомление о работе сразу
     showWorkNotification();
@@ -69,8 +67,9 @@ function updateWorkButtonsState() {
   
   const activeAccounts = document.querySelectorAll('.account[data-account-status="active"]');
   const hasActiveAccounts = activeAccounts.length > 0;
+  const currentWorkStatus = window.workStatus || workStatus;
   
-  if (workStatus) {
+  if (currentWorkStatus) {
     if (startWorkBtn) startWorkBtn.disabled = true;
     if (endWorkBtn) endWorkBtn.disabled = false;
   } else {
@@ -87,9 +86,9 @@ function updateChatButtonsState() {
   const autoMessageCheckbox = document.getElementById('sendAutoMessageStatus');
   
   const hasSelectedAccounts = document.querySelectorAll('[data-account-selected="true"]').length > 0;
-  const canUseButtons = workStatus && hasSelectedAccounts;
+  const canUseButtons = (window.workStatus || workStatus) && hasSelectedAccounts;
   
-  console.log('[updateChatButtonsState] workStatus:', workStatus, 'hasSelectedAccounts:', hasSelectedAccounts, 'canUseButtons:', canUseButtons);
+  console.log('[updateChatButtonsState] workStatus:', window.workStatus || workStatus, 'hasSelectedAccounts:', hasSelectedAccounts, 'canUseButtons:', canUseButtons);
   
   if (chatBtn) chatBtn.disabled = !canUseButtons;
   if (autoMessagesBtn) autoMessagesBtn.disabled = !canUseButtons;

@@ -100,13 +100,13 @@ const socket = new WebSocket(endpoint);
         showAlert(message, "alert-danger")
         break;
       case 'KICK_START_WORK':
-        console.log('[KICK-WS] KICK_START_WORK received, setting workStatus = true');
-        workStatus = true;
+        console.log('[KICK-WS] KICK_START_WORK received');
         countingSendingPerMinute(message);
         workTimer(message["startWorkTime"])
         break;
       case 'KICK_END_WORK':
         workStatus = false;
+        window.workStatus = false; // Синхронизируем глобальное состояние
         showAlert("Have you finished your work", "alert-success")
         hideWorkNotification(); // Скрываем уведомление о работе
         clearInterval(workTimerId);
