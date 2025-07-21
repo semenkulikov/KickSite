@@ -53,7 +53,10 @@ function showAccounts(accounts) {
         } else {
             accountsContainer.appendChild(block);
         }
-        updateWorkButtonsState();
+        // Если хотя бы один активный аккаунт — обновить кнопки сразу
+        if (acc.status === 'active') {
+            updateWorkButtonsState();
+        }
         // Убираем крутилку, если есть
         const uploading = document.getElementById('uploading-accounts-indicator');
         if (uploading) uploading.remove();

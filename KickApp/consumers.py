@@ -248,11 +248,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             channel = self.channel_group_name or 'default'
             print(f"Work started for channel {channel}. Ready to send messages.")
             
-            await self.send(text_data=json.dumps({
-                'type': 'KICK_WORK_READY',
-                'message': f'Work mode activated for channel {channel}. Ready to send messages.'
-            }))
-
+            # Сразу запускаем работу, не ждем загрузки всех аккаунтов
             self.work_task = asyncio.create_task(self.start_work(json_data.get('message', 'Hello from the bot!'), 1))
 
         elif _type == 'KICK_SEND_MESSAGE':
