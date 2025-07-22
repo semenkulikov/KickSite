@@ -7,7 +7,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 import datetime
 import os
-from .playwright_utils import playwright_login_and_save_storage_state
+# from .playwright_utils import playwright_login_and_save_storage_state
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from asgiref.sync import sync_to_async
@@ -173,24 +173,28 @@ def async_generate_storage_state(instance_id):
     import asyncio
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    try:
-        result = loop.run_until_complete(
-            playwright_login_and_save_storage_state(
-                login=acc.login,
-                password=acc.password,
-                storage_state_path=storage_state_path,
-                proxy_url=str(getattr(acc.proxy, 'url', '')) if acc.proxy else ""
-            )
-        )
-    finally:
-        loop.close()
-    if result:
-        acc.storage_state_path = storage_state_path
-        acc.storage_state_status = 'success'
-        acc.save(update_fields=["storage_state_path", "storage_state_status"])
-    else:
-        acc.storage_state_status = 'fail'
-        acc.save(update_fields=["storage_state_status"])
+    # try:
+    #     result = loop.run_until_complete(
+    #         playwright_login_and_save_storage_state(
+    #             login=acc.login,
+    #             password=acc.password,
+    #             storage_state_path=storage_state_path,
+    #             proxy_url=str(getattr(acc.proxy, 'url', '')) if acc.proxy else ""
+    #         )
+    #     )
+    # finally:
+    #     loop.close()
+    # if result:
+    #     acc.storage_state_path = storage_state_path
+    #     acc.storage_state_status = 'success'
+    #     acc.save(update_fields=["storage_state_path", "storage_state_status"])
+    # else:
+    #     acc.storage_state_status = 'fail'
+    #     acc.save(update_fields=["storage_state_status"])
+    
+    # Временно отключаем playwright авторизацию
+    acc.storage_state_status = 'disabled'
+    acc.save(update_fields=["storage_state_status"])
 
 storage_state_executor = ThreadPoolExecutor(max_workers=2)
 

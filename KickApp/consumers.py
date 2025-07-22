@@ -442,6 +442,10 @@ class KickAppChatWs(AsyncWebsocketConsumer):
         try:
             print(f"[handle_send_error] Analyzing error for account {account.login}: {error_message}")
             
+            # Преобразуем error_message в строку если это не строка
+            if not isinstance(error_message, str):
+                error_message = str(error_message)
+            
             # Проверяем тип ошибки
             if "proxy" in error_message.lower() or "connection" in error_message.lower():
                 # Ошибка прокси - помечаем прокси как невалидный
