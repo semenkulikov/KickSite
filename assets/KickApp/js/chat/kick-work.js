@@ -33,18 +33,36 @@ if (endWorkBtn) {
   endWorkBtn.disabled = true;
   endWorkBtn.addEventListener("click", function () {
   console.log("End work");
-    getKickSocket().send(JSON.stringify({
-      "type": "KICK_END_WORK",
-    "message": "End work",
-  }));
-    document.getElementById("buttonEndWork").disabled = true;
+    
+    // Останавливаем автоматическую рассылку
+    const autoMessageCheckbox = document.getElementById('sendAutoMessageStatus');
+    if (autoMessageCheckbox && autoMessageCheckbox.checked) {
+      autoMessageCheckbox.checked = false;
+      autoMessageCheckbox.click(); // Это вызовет обработчик события и остановит рассылку
+    }
     
     // Сбрасываем AccountManager при остановке работы
     if (window.accountManager) {
       window.accountManager.reset();
     }
     
+    // Сбрасываем все галочки в дефолтное положение
+    resetAllCheckboxes();
+    
+    // Отправляем сообщение на сервер
+    getKickSocket().send(JSON.stringify({
+      "type": "KICK_END_WORK",
+    "message": "End work",
+  }));
+    
+    // Сбрасываем workStatus
+    window.workStatus = false;
+    
+    // Обновляем состояние кнопок
     updateWorkButtonsState();
+    
+    // Скрываем уведомление о работе
+    hideWorkNotification();
 });
 }
 
@@ -95,8 +113,8 @@ function updateChatButtonsState() {
   const hasActiveAccounts = document.querySelectorAll('.account[data-account-status="active"]').length > 0;
   const autoSwitchEnabled = window.accountManager && window.accountManager.autoSwitchEnabled;
   
-  // Если включено авто-переключение, используем наличие активных аккаунтов
-  // Если выключено - используем наличие выбранных аккаунтов
+  // В auto switch режиме кнопка активна если есть активные аккаунты
+  // В обычном режиме кнопка активна если есть выбранные аккаунты
   const canUseButtons = (window.workStatus || workStatus) && (autoSwitchEnabled ? hasActiveAccounts : hasSelectedAccounts);
   
   console.log('[updateChatButtonsState] workStatus:', window.workStatus || workStatus, 'hasSelectedAccounts:', hasSelectedAccounts, 'hasActiveAccounts:', hasActiveAccounts, 'autoSwitchEnabled:', autoSwitchEnabled, 'canUseButtons:', canUseButtons);
@@ -156,7 +174,60 @@ function stopWorkTimeCounter() {
   }
 }
 
+// Функция для сброса всех галочек в дефолтное положение
+function resetAllCheckboxes() {
+  // Сбрасываем галочку автоматической рассылки
+  const autoMessageCheckbox = document.getElementById('sendAutoMessageStatus');
+  if (autoMessageCheckbox) {
+    autoMessageCheckbox.checked = false;
+  }
+  
+  // Сбрасываем галочку авто-переключения аккаунтов
+  const autoSwitchCheckbox = document.getElementById('autoSwitchAccounts');
+  if (autoSwitchCheckbox) {
+    autoSwitchCheckbox.checked = false;
+  }
+  
+  // Сбрасываем галочку случайного режима
+  const randomModeCheckbox = document.getElementById('randomMode');
+  if (randomModeCheckbox) {
+    randomModeCheckbox.checked = false;
+  }
+  
+  // Снимаем выделение со всех аккаунтов
+  const accountCheckboxes = document.querySelectorAll('.account__checkbox');
+  accountCheckboxes.forEach(checkbox => {
+    checkbox.checked = false;
+    checkbox.setAttribute('data-account-selected', 'false');
+    checkbox.parentNode.classList.remove('account-checked');
+  });
+  
+  // Очищаем поле ввода сообщения
+  const inputMessage = document.getElementById('inputMessage');
+  if (inputMessage) {
+    inputMessage.value = '';
+  }
+  
+  // Сбрасываем счетчик сообщений в минуту
+  const averageSendingPerMinute = document.getElementById("averageSendingPerMinute");
+  if (averageSendingPerMinute) {
+    averageSendingPerMinute.innerText = "0.00";
+  }
+  
+  // Сбрасываем таймер работы
+  const workTimer = document.getElementById("workTimer");
+  if (workTimer) {
+    workTimer.innerHTML = "00:00:00";
+  }
+  
+  // Сбрасываем таймер автоматических сообщений
+  const timerAutoMessage = document.getElementById("timerAutoMessage");
+  if (timerAutoMessage) {
+    timerAutoMessage.innerText = "00:00";
+  }
+}
+
 // Делаем функцию доступной глобально для onclick
 window.hideWorkNotification = hideWorkNotification;
 
-export {workTimer, workTimerId, updateWorkButtonsState, updateChatButtonsState, showWorkNotification, hideWorkNotification};
+export {workTimer, workTimerId, updateWorkButtonsState, updateChatButtonsState, showWorkNotification, hideWorkNotification, resetAllCheckboxes};

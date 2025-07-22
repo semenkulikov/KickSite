@@ -128,6 +128,10 @@ const socket = new WebSocket(endpoint);
         for (let account of accounts) {
           account.classList.remove("account-auto-send");
         }
+        // Очищаем pendingMessages из kick-send.js
+        if (window.pendingMessages) {
+          window.pendingMessages.clear();
+        }
         // Update button states
         updateWorkButtonsState();
         break;

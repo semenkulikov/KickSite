@@ -89,16 +89,18 @@ document.getElementById('sendAutoMessageStatus').addEventListener("click", funct
                 console.log(`Starting auto-send with frequency: ${freq} messages/min, interval: ${intervalMs}ms`);
 
                 intervalSendAutoMessageId = setInterval(function () {
-                  // Получаем только выбранные аккаунты
-                  const selectedAccounts = document.querySelectorAll('.account__checkbox:checked');
+                  // Проверяем, включен ли auto switch режим
+                  const isAutoSwitchEnabled = window.accountManager && window.accountManager.autoSwitchEnabled;
                   
-                  if (selectedAccounts.length > 0 && messages && messages.length > 0) {
-                    // Выбираем случайный выбранный аккаунт
-                    const randomIndex = Math.floor(Math.random() * selectedAccounts.length);
-                    const selectedAccount = selectedAccounts[randomIndex];
+                  if (isAutoSwitchEnabled) {
+                    // В auto switch режиме переключаем на следующий аккаунт
+                    window.accountManager.switchToNextAccount();
                     
-                    if (selectedAccount && selectedAccount.value) {
-                      let accountLogin = selectedAccount.value;
+                    // Получаем текущий выбранный аккаунт
+                    const currentSelectedAccount = document.querySelector('[data-account-selected="true"]');
+                    
+                    if (currentSelectedAccount && currentSelectedAccount.value && messages && messages.length > 0) {
+                      let accountLogin = currentSelectedAccount.value;
                       // Выбираем случайное сообщение из массива
                       let randomMessage = messages[Math.floor(Math.random() * messages.length)];
                       let data = {
@@ -113,6 +115,33 @@ document.getElementById('sendAutoMessageStatus').addEventListener("click", funct
                           "type": "KICK_SEND_MESSAGE",
                           "message": data,
                       }));
+                    }
+                  } else {
+                    // Старая логика для обычного режима
+                    const selectedAccounts = document.querySelectorAll('.account__checkbox:checked');
+                    
+                    if (selectedAccounts.length > 0 && messages && messages.length > 0) {
+                      // Выбираем случайный выбранный аккаунт
+                      const randomIndex = Math.floor(Math.random() * selectedAccounts.length);
+                      const selectedAccount = selectedAccounts[randomIndex];
+                      
+                      if (selectedAccount && selectedAccount.value) {
+                        let accountLogin = selectedAccount.value;
+                        // Выбираем случайное сообщение из массива
+                        let randomMessage = messages[Math.floor(Math.random() * messages.length)];
+                        let data = {
+                            "channel": channel,
+                            "account": accountLogin,
+                            "message": randomMessage,
+                            "auto": true
+                        }
+                        // Возвращаем логи в глобальные
+                        addMessageToLogs(data);
+                        getKickSocket().send(JSON.stringify({
+                            "type": "KICK_SEND_MESSAGE",
+                            "message": data,
+                        }));
+                      }
                     }
                   }
                   

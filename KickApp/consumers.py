@@ -269,31 +269,18 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                     self.channel_group_name,
                     self.channel_name
                 )
-            # Получаем все аккаунты
+            # Загружаем все аккаунты без проверки
             accounts = await sync_to_async(list)(KickAccount.objects.all())
-            semaphore = asyncio.Semaphore(10)  # лимит одновременных проверок
-            @sync_to_async
-            def get_proxy_str(acc):
-                if hasattr(acc, 'proxy') and acc.proxy:
-                    return str(acc.proxy.url)
-                return None
-            async def check_and_send(acc):
-                proxy_str = await get_proxy_str(acc)
-                async with semaphore:
-                    try:
-                        await asyncio.wait_for(acc.acheck_kick_account_valid(proxy=proxy_str), timeout=10)
-                    except Exception:
-                        acc.status = 'timeout'
-                    account_status = {
-                        'id': acc.id,
-                        'login': acc.login,
-                        'status': acc.status
-                    }
-                    await self.send(text_data=json.dumps({
-                        'event': 'KICK_ACCOUNT_STATUS',
-                        'message': account_status
-                    }))
-            await asyncio.gather(*(check_and_send(acc) for acc in accounts))
+            for acc in accounts:
+                account_status = {
+                    'id': acc.id,
+                    'login': acc.login,
+                    'status': acc.status  # Используем текущий статус из БД
+                }
+                await self.send(text_data=json.dumps({
+                    'event': 'KICK_ACCOUNT_STATUS',
+                    'message': account_status
+                }))
 
         elif _type == 'KICK_START_WORK':
             if self.work_task and not self.work_task.done():
@@ -431,6 +418,10 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 # result содержит текст ошибки
                 error_msg = f'❌ Failed to send message from {account_login} to {channel}: {result}'
                 print(f"[SEND_MESSAGE] {error_msg}")
+                
+                # Анализируем ошибку и обновляем статус аккаунта/прокси
+                await self.handle_send_error(account, result, proxy_url)
+                
                 await self.send(text_data=json.dumps({
                     'type': 'KICK_ERROR',
                     'message': error_msg,
@@ -444,6 +435,40 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 'type': 'KICK_ERROR',
                 'message': f'Exception: {str(e)}'
             }))
+
+    @database_sync_to_async
+    def handle_send_error(self, account, error_message, proxy_url):
+        """Обрабатывает ошибки отправки и обновляет статусы аккаунтов/прокси"""
+        try:
+            print(f"[handle_send_error] Analyzing error for account {account.login}: {error_message}")
+            
+            # Проверяем тип ошибки
+            if "proxy" in error_message.lower() or "connection" in error_message.lower():
+                # Ошибка прокси - помечаем прокси как невалидный
+                if account.proxy:
+                    account.proxy.status = 'invalid'
+                    account.proxy.save()
+                    print(f"[handle_send_error] Marked proxy {account.proxy.url} as invalid")
+                # Аккаунт остается активным
+                
+            elif "banned" in error_message.lower() or "blocked" in error_message.lower():
+                # Бан - это нормально, аккаунт остается активным
+                print(f"[handle_send_error] Account {account.login} is banned, keeping active status")
+                
+            elif "security policy" in error_message.lower():
+                # Критическая ошибка - помечаем аккаунт как неактивный
+                account.status = 'inactive'
+                account.save()
+                print(f"[handle_send_error] Marked account {account.login} as inactive due to security policy")
+                
+            else:
+                # Другие ошибки - помечаем аккаунт как неактивный
+                account.status = 'inactive'
+                account.save()
+                print(f"[handle_send_error] Marked account {account.login} as inactive due to unknown error")
+                
+        except Exception as e:
+            print(f"[handle_send_error] Exception: {e}")
 
     @database_sync_to_async
     def get_account_by_login(self, login):

@@ -40,14 +40,52 @@ class KickPlaywrightClient:
                     ]
                 }
                 
-                # Playwright поддерживает только HTTP/HTTPS прокси
-                if proxy_url and (proxy_url.startswith('http://') or proxy_url.startswith('https://')):
-                    try:
-                        browser_options['proxy'] = {'server': proxy_url}
-                    except Exception as e:
-                        logger.warning(f"Failed to parse proxy URL {proxy_url}: {e}")
-                elif proxy_url:
-                    logger.warning(f"Skipping unsupported proxy {proxy_url} - Playwright supports only HTTP/HTTPS")
+                # Поддержка HTTP прокси для Playwright (конвертируем SOCKS5 в HTTP)
+                if proxy_url:
+                    if proxy_url.startswith("socks5://"):
+                        # Конвертируем SOCKS5 в HTTP для Playwright
+                        try:
+                            # Извлекаем данные из SOCKS5 URL: socks5://user:pass@host:port
+                            proxy_parts = proxy_url.replace("socks5://", "").split("@")
+                            if len(proxy_parts) == 2:
+                                auth, server = proxy_parts
+                                username, password = auth.split(":")
+                                host, port = server.split(":")
+
+                                # Создаем HTTP прокси конфигурацию для Playwright
+                                browser_options['proxy'] = {
+                                    'server': f"http://{host}:{port}",
+                                    'username': username,
+                                    'password': password
+                                }
+                                logger.info(f"[VALIDATE_ACCOUNT] Converted SOCKS5 to HTTP proxy: {host}:{port}")
+                            else:
+                                logger.warning(f"[VALIDATE_ACCOUNT] Invalid SOCKS5 proxy format: {proxy_url}")
+                        except Exception as e:
+                            logger.error(f"[VALIDATE_ACCOUNT] Error converting SOCKS5 proxy: {e}")
+                    elif proxy_url.startswith("http://") or proxy_url.startswith("https://"):
+                        # Уже HTTP прокси
+                        try:
+                            browser_options['proxy'] = {'server': proxy_url}
+                            logger.info(f"[VALIDATE_ACCOUNT] Using HTTP proxy: {proxy_url}")
+                        except Exception as e:
+                            logger.warning(f"[VALIDATE_ACCOUNT] Failed to parse proxy URL {proxy_url}: {e}")
+                    else:
+                        # Пробуем парсить как host:port:user:pass формат
+                        try:
+                            parts = proxy_url.split(':')
+                            if len(parts) == 4:
+                                host, port, username, password = parts
+                                browser_options['proxy'] = {
+                                    'server': f"http://{host}:{port}",
+                                    'username': username,
+                                    'password': password
+                                }
+                                logger.info(f"[VALIDATE_ACCOUNT] Parsed proxy format: {host}:{port}")
+                            else:
+                                logger.warning(f"[VALIDATE_ACCOUNT] Unknown proxy format: {proxy_url}")
+                        except Exception as e:
+                            logger.error(f"[VALIDATE_ACCOUNT] Error parsing proxy: {e}")
                 
                 browser = await p.chromium.launch(**browser_options)
                 context = await browser.new_context(
