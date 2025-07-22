@@ -269,18 +269,23 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                     self.channel_group_name,
                     self.channel_name
                 )
-            # Загружаем все аккаунты без проверки
+            
+            # Сбрасываем статус всех аккаунтов для нового сеанса
+            # Аккаунты помечаются как активные только для текущего сеанса
             accounts = await sync_to_async(list)(KickAccount.objects.all())
             for acc in accounts:
+                # Для нового сеанса все аккаунты активны (кроме тех что помечены как неактивные в БД)
                 account_status = {
                     'id': acc.id,
                     'login': acc.login,
-                    'status': acc.status  # Используем текущий статус из БД
+                    'status': 'active' if acc.status == 'active' else acc.status  # Используем статус из БД
                 }
                 await self.send(text_data=json.dumps({
                     'event': 'KICK_ACCOUNT_STATUS',
                     'message': account_status
                 }))
+            
+            print(f"[KICK-WS] Channel changed to {channel_name}, all accounts reset for new session")
 
         elif _type == 'KICK_START_WORK':
             if self.work_task and not self.work_task.done():
@@ -420,7 +425,17 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 print(f"[SEND_MESSAGE] {error_msg}")
                 
                 # Анализируем ошибку и обновляем статус аккаунта/прокси
-                await self.handle_send_error(account, result, proxy_url)
+                status_for_session = await self.handle_send_error(account, result, proxy_url)
+                
+                # Отправляем событие о смене статуса аккаунта
+                await self.send(text_data=json.dumps({
+                    'type': 'KICK_ACCOUNT_STATUS',
+                    'message': {
+                        'id': account.id,
+                        'login': account.login,
+                        'status': 'inactive'
+                    }
+                }))
                 
                 await self.send(text_data=json.dumps({
                     'type': 'KICK_ERROR',
@@ -447,40 +462,53 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 error_message = str(error_message)
             
             # Проверяем тип ошибки
-            if "502" in error_message or "bad gateway" in error_message.lower() or "tunnel connection failed" in error_message.lower():
-                # Ошибка прокси - помечаем прокси как невалидный
+            if "502" in error_message or "500" in error_message or "bad gateway" in error_message.lower() or "tunnel connection failed" in error_message.lower():
+                # Ошибка прокси - помечаем прокси как неактивный в БД
                 if account.proxy:
-                    account.proxy.status = 'invalid'
+                    account.proxy.status = False  # Boolean False для неактивного прокси
                     account.proxy.save()
-                    print(f"[handle_send_error] Marked proxy {account.proxy.url} as invalid due to 502 error")
-                # Аккаунт остается активным
+                    print(f"[handle_send_error] Marked proxy {account.proxy.url} as inactive in DB due to proxy error")
+                # Аккаунт помечается крестиком только на текущий сеанс (не в БД)
+                print(f"[handle_send_error] Account {account.login} marked as inactive for current session due to proxy error")
+                return "session_inactive"  # Возвращаем статус для пометки на сеанс
                 
             elif "proxy" in error_message.lower() or "connection" in error_message.lower():
-                # Ошибка прокси - помечаем прокси как невалидный
+                # Ошибка прокси - помечаем прокси как неактивный в БД
                 if account.proxy:
-                    account.proxy.status = 'invalid'
+                    account.proxy.status = False  # Boolean False для неактивного прокси
                     account.proxy.save()
-                    print(f"[handle_send_error] Marked proxy {account.proxy.url} as invalid")
-                # Аккаунт остается активным
+                    print(f"[handle_send_error] Marked proxy {account.proxy.url} as inactive in DB")
+                # Аккаунт помечается крестиком только на текущий сеанс (не в БД)
+                print(f"[handle_send_error] Account {account.login} marked as inactive for current session due to proxy error")
+                return "session_inactive"  # Возвращаем статус для пометки на сеанс
                 
             elif "banned" in error_message.lower() or "blocked" in error_message.lower():
-                # Бан - это нормально, аккаунт остается активным
-                print(f"[handle_send_error] Account {account.login} is banned, keeping active status")
+                # Бан - аккаунт помечается крестиком только на текущий сеанс (не в БД)
+                print(f"[handle_send_error] Account {account.login} is banned, marked as inactive for current session")
+                return "session_inactive"  # Возвращаем статус для пометки на сеанс
                 
             elif "security policy" in error_message.lower():
-                # Критическая ошибка - помечаем аккаунт как неактивный
+                # Критическая ошибка - помечаем аккаунт как неактивный в БД
                 account.status = 'inactive'
                 account.save()
-                print(f"[handle_send_error] Marked account {account.login} as inactive due to security policy")
+                print(f"[handle_send_error] Marked account {account.login} as inactive in DB due to security policy")
+                return "db_inactive"  # Возвращаем статус для пометки в БД
+                
+            elif "invalid token" in error_message.lower() or "unauthorized" in error_message.lower():
+                # Ошибка токена - помечаем аккаунт как неактивный в БД
+                account.status = 'inactive'
+                account.save()
+                print(f"[handle_send_error] Marked account {account.login} as inactive in DB due to invalid token")
+                return "db_inactive"  # Возвращаем статус для пометки в БД
                 
             else:
-                # Другие ошибки - помечаем аккаунт как неактивный
-                account.status = 'inactive'
-                account.save()
-                print(f"[handle_send_error] Marked account {account.login} as inactive due to unknown error")
+                # Другие ошибки - аккаунт помечается крестиком только на текущий сеанс (не в БД)
+                print(f"[handle_send_error] Account {account.login} marked as inactive for current session due to unknown error")
+                return "session_inactive"  # Возвращаем статус для пометки на сеанс
                 
         except Exception as e:
             print(f"[handle_send_error] Exception: {e}")
+            return "session_inactive"  # По умолчанию помечаем как неактивный на сеанс
 
     @database_sync_to_async
     def get_account_by_login(self, login):
