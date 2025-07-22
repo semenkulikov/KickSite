@@ -17,7 +17,6 @@ class UserAdmin(UserAdmin):
         (None, {'fields': ('username', 'password')}),
         ('Permissions', {'fields': ('is_staff',)}),
         ('Groups', {'fields': ('groups',)}),
-        ('Twitch Accounts', {'fields': ('twitch_account',)}),
         ('Primary personal information', {
             'fields': ('first_name', 'last_name')}),
         ('Status', {'fields': ('is_active',)}),
