@@ -84,7 +84,7 @@ async def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message:
     # session_token зашифрован в формате Laravel и не подходит для прямого использования
     if not token or '|' not in token:
         logger.error("[SEND_MESSAGE] No valid token provided (should be in format USERID|TOKEN)")
-        return False
+        return "Invalid token format"
     
     # Извлекаем данные из token (формат: USERID|TOKEN)
     user_id, token_part = token.split('|', 1)
@@ -142,14 +142,14 @@ async def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message:
         
         if channel_response.status_code != 200:
             logger.error(f"[SEND_MESSAGE] Channel lookup failed: {channel_response.status_code} {channel_response.text}")
-            return False
+            return f"Channel lookup failed: HTTP {channel_response.status_code}"
         
         channel_data = channel_response.json()
         chatroom_id = channel_data.get('chatroom', {}).get('id')
         
         if not chatroom_id:
             logger.error(f"[SEND_MESSAGE] No chatroom_id found in response: {channel_data}")
-            return False
+            return "No chatroom_id found in response"
         
         logger.info(f"[SEND_MESSAGE] Got chatroom_id: {chatroom_id}")
         
@@ -203,7 +203,7 @@ async def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message:
             
     except Exception as e:
         logger.error(f"[SEND_MESSAGE] Exception: {e}")
-        return False
+        return f"Proxy error: {str(e)}"
 
 
 async def get_channel_id_by_slug(channel_slug: str, token: str = None):
@@ -447,7 +447,15 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 error_message = str(error_message)
             
             # Проверяем тип ошибки
-            if "proxy" in error_message.lower() or "connection" in error_message.lower():
+            if "502" in error_message or "bad gateway" in error_message.lower() or "tunnel connection failed" in error_message.lower():
+                # Ошибка прокси - помечаем прокси как невалидный
+                if account.proxy:
+                    account.proxy.status = 'invalid'
+                    account.proxy.save()
+                    print(f"[handle_send_error] Marked proxy {account.proxy.url} as invalid due to 502 error")
+                # Аккаунт остается активным
+                
+            elif "proxy" in error_message.lower() or "connection" in error_message.lower():
                 # Ошибка прокси - помечаем прокси как невалидный
                 if account.proxy:
                     account.proxy.status = 'invalid'
