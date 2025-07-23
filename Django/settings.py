@@ -59,6 +59,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'ServiceApp.middleware.TransactionMiddleware',
+    'ServiceApp.middleware.AdminAccessMiddleware',
 ]
 
 ROOT_URLCONF = 'Django.urls'
@@ -213,6 +214,7 @@ CSRF_TRUSTED_ORIGINS = [
 
 
 LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "/"
 
 SOCKETS_DIR = dict()
 

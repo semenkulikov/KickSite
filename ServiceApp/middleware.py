@@ -1,8 +1,10 @@
 from django.db import transaction, OperationalError
 from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 import time
 import logging
+from django.urls import reverse
+from django.contrib import messages
 
 logger = logging.getLogger(__name__)
 
@@ -45,3 +47,19 @@ class TransactionMiddleware:
         
         # This should never be reached, but just in case
         return HttpResponse("Service temporarily unavailable", status=503)
+
+class AdminAccessMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        # Проверяем доступ к админке
+        if request.path.startswith('/admin/') and request.path != '/admin/login/':
+            if not request.user.is_authenticated:
+                return redirect('login')
+            if not request.user.is_staff:
+                # Тихо редиректим без сообщений об ошибках
+                return redirect('index')
+        
+        response = self.get_response(request)
+        return response

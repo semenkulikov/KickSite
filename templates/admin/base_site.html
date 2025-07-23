@@ -1,0 +1,17 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block branding %}
+<h1 id="site-name">
+    <a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a>
+    {% if user.is_staff %}
+    <a href="{% url 'kick_stats' %}" class="btn btn-success ms-3" style="font-size: 14px; padding: 5px 10px;">
+        📊 Статистика
+    </a>
+    {% endif %}
+</h1>
+{% endblock %}
+
+{% block nav-global %}{% endblock %} 

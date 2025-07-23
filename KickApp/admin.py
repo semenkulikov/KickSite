@@ -202,5 +202,5 @@ class KickAccountAdmin(admin.ModelAdmin):
         
         return render(request, 'admin/kickaccount_mass_proxy_update.html', context)
 
-# admin.site.unregister(KickAccount)  # Удалено, чтобы не было ошибки NotRegistered
+# Регистрируем только KickAccount в стандартной админке
 admin.site.register(KickAccount, KickAccountAdmin)

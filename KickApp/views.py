@@ -1,15 +1,22 @@
 from django.shortcuts import render
 import requests
-from django.http import JsonResponse, HttpResponseBadRequest
+from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.views.decorators.http import require_GET
+from django.contrib.auth.decorators import login_required, user_passes_test
 
 # Create your views here.
 
+@login_required
 def kick_chat(request):
     return render(request, 'KickApp/chat.html')
 
 def kick_index(request):
     return render(request, 'KickApp/index.html')
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def kick_stats(request):
+    return render(request, 'KickApp/stats.html')
 
 @require_GET
 def channel_info(request):

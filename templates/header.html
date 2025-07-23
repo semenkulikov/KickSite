@@ -18,7 +18,6 @@
           </a>
           <ul class="dropdown-menu bg-dark border-0" aria-labelledby="kickDropdown" style="background: #18181b;">
             <li><a class="dropdown-item text-light {% if request.resolver_match.url_name == 'kick_chat' %}active{% endif %}" style="background: #18181b;" href="{% url 'kick_chat' %}">Chat</a></li>
-            <li><a class="dropdown-item text-light {% if request.resolver_match.url_name == 'kick_index' %}active{% endif %}" style="background: #18181b;" href="{% url 'kick_index' %}">Stat</a></li>
             </ul>
           </li>
       </ul>
