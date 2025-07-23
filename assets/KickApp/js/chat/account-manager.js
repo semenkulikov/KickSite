@@ -1,3 +1,5 @@
+import { getKickSocket } from "./kick-ws";
+
 // Account Manager - автоматическое переключение между аккаунтами
 
 class AccountManager {
@@ -47,6 +49,20 @@ class AccountManager {
     this.updateControlsState();
     console.log(`[AccountManager] Auto switch ${enabled ? 'enabled' : 'disabled'}`);
     
+    // Логируем действие в WebSocket
+    const ws = getKickSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'KICK_LOG_ACTION',
+        action_type: 'checkbox_toggle',
+        description: `Auto switch accounts ${enabled ? 'enabled' : 'disabled'}`,
+        details: {
+          action: 'auto_switch_toggle',
+          enabled: enabled
+        }
+      }));
+    }
+    
     // Обновляем состояние кнопок после изменения режима
     if (window.updateChatButtonsState) {
       window.updateChatButtonsState();
@@ -62,6 +78,20 @@ class AccountManager {
       console.log('[AccountManager] Random mode enabled');
     } else {
       console.log('[AccountManager] Sequential mode enabled');
+    }
+    
+    // Логируем действие в WebSocket
+    const ws = getKickSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'KICK_LOG_ACTION',
+        action_type: 'checkbox_toggle',
+        description: `Random mode ${enabled ? 'enabled' : 'disabled'}`,
+        details: {
+          action: 'random_mode_toggle',
+          enabled: enabled
+        }
+      }));
     }
   }
   
@@ -198,6 +228,20 @@ class AccountManager {
     }
     
     console.log(`[AccountManager] Selected ${activeCheckboxes.length} accounts`);
+    
+    // Логируем действие в WebSocket
+    const ws = getKickSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'KICK_LOG_ACTION',
+        action_type: 'checkbox_toggle',
+        description: `Выбраны все аккаунты (${activeCheckboxes.length} шт.)`,
+        details: {
+          action: 'select_all',
+          count: activeCheckboxes.length
+        }
+      }));
+    }
   }
   
   // Снятие выделения со всех аккаунтов
@@ -217,6 +261,20 @@ class AccountManager {
     }
     
     console.log('[AccountManager] Deselected all accounts');
+    
+    // Логируем действие в WebSocket
+    const ws = getKickSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'KICK_LOG_ACTION',
+        action_type: 'checkbox_toggle',
+        description: 'Снято выделение со всех аккаунтов',
+        details: {
+          action: 'deselect_all',
+          count: allCheckboxes.length
+        }
+      }));
+    }
   }
   
   // Обновление информации о текущем аккаунте

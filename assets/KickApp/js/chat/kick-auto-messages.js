@@ -47,6 +47,18 @@ document.getElementById('sendAutoMessageStatus').addEventListener("click", funct
 
   if (window.workStatus) {
     if (checkbox.checked) {
+      // Логируем включение auto messages
+      const ws = getKickSocket();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'KICK_LOG_ACTION',
+          action_type: 'auto_start',
+          description: 'Auto messages enabled',
+          details: {
+            action: 'auto_messages_enabled'
+          }
+        }));
+      }
       let elementSelectedChannel = document.getElementById("selectedChannel");
 
       if (elementSelectedChannel.dataset.status === "selected") {
@@ -186,6 +198,19 @@ document.getElementById('sendAutoMessageStatus').addEventListener("click", funct
         showAlert("You have not selected a channel", "alert-danger")
       }
     } else {
+      // Логируем отключение auto messages
+      const ws = getKickSocket();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'KICK_LOG_ACTION',
+          action_type: 'auto_stop',
+          description: 'Auto messages disabled',
+          details: {
+            action: 'auto_messages_disabled'
+          }
+        }));
+      }
+      
       const editAutoMessageBtn = document.getElementById("editAutoMessage");
       if (editAutoMessageBtn) {
         editAutoMessageBtn.disabled = false;
@@ -315,6 +340,21 @@ function saveAutoMessages() {
   let messages = autoMessageTextArea.value.split("\n").map((element) => element.trim()).filter((element) => element !== "");
   if (messages.length) {
     addOrUpdateFrequencyDB(frequencySend.value);
+
+    // Логируем изменение частоты и сообщений
+    const ws = getKickSocket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'KICK_LOG_ACTION',
+        action_type: 'settings_change',
+        description: `Frequency changed to ${frequencySend.value} messages/min, ${messages.length} messages saved`,
+        details: {
+          action: 'frequency_and_messages_change',
+          frequency: frequencySend.value,
+          messages_count: messages.length
+        }
+      }));
+    }
 
     // Сначала очищаем старые сообщения, потом добавляем новые
     clearAllAutoMessages().then(() => {

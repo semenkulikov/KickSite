@@ -68,4 +68,43 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Fallback удален - теперь используется правильная логика обновления кнопок в showAccounts
+  
+  // Обработчик для завершения работы при перезагрузке страницы или выходе
+  window.addEventListener('beforeunload', () => {
+    console.log('[KICK-WS] Page is unloading, ending work');
+    if (window.socket && window.socket.readyState === WebSocket.OPEN) {
+      window.socket.send(JSON.stringify({
+        type: 'KICK_END_WORK'
+      }));
+      // Также отправляем событие выхода
+      window.socket.send(JSON.stringify({
+        type: 'KICK_LOGOUT'
+      }));
+    }
+  });
+  
+  // Обработчик для завершения работы при закрытии вкладки
+  window.addEventListener('unload', () => {
+    console.log('[KICK-WS] Page is unloading (unload event)');
+    if (window.socket && window.socket.readyState === WebSocket.OPEN) {
+      window.socket.send(JSON.stringify({
+        type: 'KICK_END_WORK'
+      }));
+    }
+  });
+  
+  // Обработчик для кнопки выхода
+  document.addEventListener('click', (e) => {
+    if (e.target.matches('a[href*="logout"], a[href*="/logout"]')) {
+      console.log('[KICK-WS] Logout link clicked, ending work');
+      if (window.socket && window.socket.readyState === WebSocket.OPEN) {
+        window.socket.send(JSON.stringify({
+          type: 'KICK_END_WORK'
+        }));
+        window.socket.send(JSON.stringify({
+          type: 'KICK_LOGOUT'
+        }));
+      }
+    }
+  });
 });

@@ -7,6 +7,7 @@ from asgiref.sync import sync_to_async
 from django.db import models
 from KickApp.models import KickAccount
 from ProxyApp.models import Proxy
+from StatsApp.shift_manager import get_shift_manager, cleanup_shift_manager
 import requests
 import websockets
 import sys
@@ -233,18 +234,97 @@ class KickAppChatWs(AsyncWebsocketConsumer):
         super().__init__(*args, **kwargs)
         self.channel_group_name = None
         self.work_task = None
+        self.shift_manager = None
+        self.user = None
+
+    @database_sync_to_async
+    def get_user_from_scope(self):
+        """Получить пользователя из scope"""
+        return self.scope.get('user')
 
     async def connect(self):
         await self.accept()
+        # Получаем пользователя и инициализируем менеджер смен
+        self.user = await self.get_user_from_scope()
+        print(f"[CONNECT] User: {self.user}")
+        print(f"[CONNECT] User authenticated: {self.user.is_authenticated if self.user else False}")
+        
+        if self.user and self.user.is_authenticated:
+            self.shift_manager = await sync_to_async(get_shift_manager)(self.user)
+            print(f"[CONNECT] Shift manager created: {self.shift_manager is not None}")
+        else:
+            print(f"[CONNECT] Cannot create shift manager: user={self.user}, authenticated={self.user.is_authenticated if self.user else False}")
 
     async def disconnect(self, close_code):
-        if self.work_task:
+        print(f"[DISCONNECT] User {self.user.username if self.user else 'Anonymous'} disconnected with code {close_code}")
+        
+        # Отменяем задачу работы если она активна
+        if self.work_task and not self.work_task.done():
+            print("[DISCONNECT] Cancelling work task")
             self.work_task.cancel()
+            try:
+                await self.work_task
+            except asyncio.CancelledError:
+                print("[DISCONNECT] Work task cancelled successfully")
+        
+        # Завершаем смену при отключении
+        if self.shift_manager and self.user:
+            await sync_to_async(self.shift_manager.end_shift)()
+            await sync_to_async(cleanup_shift_manager)(self.user.id)
+        
+        # Отключаемся от группы канала
         if self.channel_group_name and self.channel_layer is not None:
             await self.channel_layer.group_discard(
                 self.channel_group_name,
                 self.channel_name
             )
+
+    async def start_shift(self):
+        """Начать смену"""
+        if self.shift_manager and self.user:
+            shift = await sync_to_async(self.shift_manager.start_shift)()
+            await self.send(text_data=json.dumps({
+                'event': 'SHIFT_STARTED',
+                'message': {
+                    'shift_id': shift.id,
+                    'start_time': shift.start_time.isoformat()
+                }
+            }))
+            return shift
+        return None
+
+    async def end_shift(self):
+        """Завершить смену"""
+        if self.shift_manager and self.user:
+            success = await sync_to_async(self.shift_manager.end_shift)()
+            if success:
+                await self.send(text_data=json.dumps({
+                    'event': 'SHIFT_ENDED',
+                    'message': {'status': 'success'}
+                }))
+            return success
+        return False
+
+    async def log_message_to_shift(self, channel: str, account: str, message_type: str, message: str):
+        """Записать сообщение в лог смены"""
+        print(f"[LOG_MESSAGE] Attempting to log: channel={channel}, account={account}, type={message_type}, message={message}")
+        print(f"[LOG_MESSAGE] shift_manager exists: {self.shift_manager is not None}")
+        print(f"[LOG_MESSAGE] user exists: {self.user is not None}")
+        print(f"[LOG_MESSAGE] user authenticated: {self.user.is_authenticated if self.user else False}")
+        
+        if self.shift_manager and self.user:
+            # Проверяем таймауты
+            await sync_to_async(self.shift_manager.check_timeout)()
+            
+            # Логируем сообщение
+            success = await sync_to_async(self.shift_manager.log_message)(
+                channel, account, message_type, message
+            )
+            print(f"[LOG_MESSAGE] Logging result: {success}")
+            return success
+        else:
+            print(f"[LOG_MESSAGE] Cannot log: shift_manager={self.shift_manager}, user={self.user}")
+        return False
 
     async def receive(self, text_data=None, bytes_data=None):
         print('[KICK-WS] RECEIVE:', text_data)
@@ -268,6 +348,14 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 await self.channel_layer.group_add(
                     self.channel_group_name,
                     self.channel_name
+                )
+            
+            # Логируем выбор канала
+            if self.shift_manager and self.user:
+                await sync_to_async(self.shift_manager.log_action)(
+                    'channel_select', 
+                    f'Выбран канал: {channel_name}',
+                    {'channel': channel_name}
                 )
             
             # Сбрасываем статус всех аккаунтов для нового сеанса
@@ -295,6 +383,14 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             channel = self.channel_group_name or 'default'
             print(f"Work started for channel {channel}. Ready to send messages.")
             
+            # Логируем начало работы
+            if self.shift_manager and self.user:
+                await sync_to_async(self.shift_manager.log_action)(
+                    'work_start', 
+                    f'Начало работы в канале: {channel}',
+                    {'channel': channel, 'message': json_data.get('message', 'Hello from the bot!')}
+                )
+            
             # Сразу запускаем работу, не ждем загрузки всех аккаунтов
             self.work_task = asyncio.create_task(self.start_work(json_data.get('message', 'Hello from the bot!'), 1))
 
@@ -304,6 +400,38 @@ class KickAppChatWs(AsyncWebsocketConsumer):
 
         elif _type == 'KICK_END_WORK':
             await self.end_work()
+        
+        elif _type == 'KICK_LOGOUT':
+            # Пользователь выходит из системы
+            print(f"[LOGOUT] User {self.user.username if self.user else 'Anonymous'} is logging out")
+            await self.end_work()
+            # Закрываем соединение
+            await self.close()
+        elif _type == 'KICK_LOG_ACTION':
+            await self.handle_log_action(json_data)
+
+    async def handle_log_action(self, data):
+        """Handle KICK_LOG_ACTION event"""
+        try:
+            action_type = data.get('action_type')
+            description = data.get('description')
+            details = data.get('details', {})
+            
+            if not all([action_type, description]):
+                print(f"[LOG_ACTION] Missing required fields: action_type or description")
+                return
+            
+            # Логируем действие в смену
+            if self.shift_manager and self.user:
+                await sync_to_async(self.shift_manager.log_action)(
+                    action_type, 
+                    description,
+                    details
+                )
+                print(f"[LOG_ACTION] Logged action: {action_type} - {description}")
+            
+        except Exception as e:
+            print(f"[LOG_ACTION] Error logging action: {e}")
 
     async def start_work(self, message: str, frequency: int):
         if not self.channel_group_name:
@@ -312,25 +440,59 @@ class KickAppChatWs(AsyncWebsocketConsumer):
 
         print(f'Starting work for channel: {self.channel_group_name}')
         
+        # Начинаем смену
+        shift = await self.start_shift()
+        
         # Отправляем событие о начале работы
         import time
         await self.send(text_data=json.dumps({
             'event': 'KICK_START_WORK',
             'message': {
-                'startWorkTime': time.time() * 1000  # время в миллисекундах
+                'startWorkTime': time.time() * 1000,  # время в миллисекундах
+                'shift_id': shift.id if shift else None
             }
         }))
         
-        # Ждем отмены задачи (когда пользователь нажмет "End Work")
+        # Запускаем периодическую проверку таймаутов
+        timeout_check_task = asyncio.create_task(self.check_timeouts_periodically())
+        
+        # Ждем отмены задачи (когда пользователь нажмет "End Work" или перезагрузит страницу)
         try:
             while True:
                 await asyncio.sleep(1)  # Просто ждем, не отправляем сообщения автоматически
         except asyncio.CancelledError:
             print("Work task was cancelled.")
+            timeout_check_task.cancel()  # Отменяем проверку таймаутов
+            # Завершаем смену при отмене задачи
+            await self.end_shift()
             return
+    
+    async def check_timeouts_periodically(self):
+        """Периодически проверять таймауты"""
+        while True:
+            try:
+                await asyncio.sleep(30)  # Проверяем каждые 30 секунд
+                if self.shift_manager and self.user:
+                    await sync_to_async(self.shift_manager.check_timeout)()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"Error checking timeouts: {e}")
+                break
 
     async def end_work(self):
         """Stop work task"""
+        # Логируем остановку работы
+        if self.shift_manager and self.user:
+            await sync_to_async(self.shift_manager.log_action)(
+                'work_stop', 
+                'Остановка работы',
+                {'channel': self.channel_group_name}
+            )
+        
+        # Завершаем смену
+        await self.end_shift()
+        
         if self.work_task:
             self.work_task.cancel()
             self.work_task = None
@@ -409,9 +571,13 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 proxy_url=proxy_url
             )
             
+            # Логируем попытку отправки сообщения
+            await self.log_message_to_shift(channel, account_login, 'm', message_text)
+            
             if result is True:
                 success_msg = f'✅ Message sent successfully from {account_login} to {channel}: "{message_text}"'
                 print(f"[SEND_MESSAGE] {success_msg}")
+                
                 await self.send(text_data=json.dumps({
                     'type': 'KICK_MESSAGE_SENT',
                     'message': success_msg,
@@ -423,6 +589,9 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 # result содержит текст ошибки
                 error_msg = f'❌ Failed to send message from {account_login} to {channel}: {result}'
                 print(f"[SEND_MESSAGE] {error_msg}")
+                
+                # Логируем ошибку отправки
+                await self.log_message_to_shift(channel, account_login, 'e', f"ERROR: {result}")
                 
                 # Анализируем ошибку и обновляем статус аккаунта/прокси
                 status_for_session = await self.handle_send_error(account, result, proxy_url)

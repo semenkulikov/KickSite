@@ -28,6 +28,7 @@ urlpatterns = [
     path('login', views.login_view, name='login'),
     path('logout', views.logout_view, name='logout'),
     path('kick/', include('KickApp.urls')),
+    path('stats/', include('StatsApp.urls')),
 ]
 
 if settings.DEBUG:
