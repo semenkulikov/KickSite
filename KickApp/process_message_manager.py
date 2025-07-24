@@ -509,5 +509,38 @@ class ProcessMessageManager:
             }
         return stats
 
-# Создаем глобальный экземпляр
+# Создаем фабрику для изолированных менеджеров
+class ProcessMessageManagerFactory:
+    """Фабрика для создания изолированных менеджеров процессов"""
+    
+    def __init__(self):
+        self.managers: Dict[int, ProcessMessageManager] = {}
+        self._lock = threading.Lock()
+    
+    def get_manager(self, user_id: int, max_processes: int = 50) -> ProcessMessageManager:
+        """Получить менеджер для конкретного пользователя"""
+        with self._lock:
+            if user_id not in self.managers:
+                self.managers[user_id] = ProcessMessageManager(max_concurrent_processes=max_processes)
+                logger.info(f"Created new ProcessMessageManager for user {user_id}")
+            return self.managers[user_id]
+    
+    def remove_manager(self, user_id: int):
+        """Удалить менеджер пользователя"""
+        with self._lock:
+            if user_id in self.managers:
+                manager = self.managers[user_id]
+                asyncio.create_task(manager.cleanup())
+                del self.managers[user_id]
+                logger.info(f"Removed ProcessMessageManager for user {user_id}")
+    
+    def get_all_managers(self) -> Dict[int, ProcessMessageManager]:
+        """Получить все менеджеры"""
+        with self._lock:
+            return self.managers.copy()
+
+# Создаем глобальную фабрику
+process_message_manager_factory = ProcessMessageManagerFactory()
+
+# Оставляем глобальный менеджер для обратной совместимости (но не используем его)
 process_message_manager = ProcessMessageManager() 

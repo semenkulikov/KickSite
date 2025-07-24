@@ -8,7 +8,7 @@ from django.db import models
 from KickApp.models import KickAccount
 from ProxyApp.models import Proxy
 from StatsApp.shift_manager import get_shift_manager, cleanup_shift_manager
-from KickApp.process_message_manager import process_message_manager
+from KickApp.process_message_manager import process_message_manager_factory
 import requests
 import websockets
 import sys
@@ -254,14 +254,13 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             self.shift_manager = await sync_to_async(get_shift_manager)(self.user)
             print(f"[CONNECT] Shift manager created: {self.shift_manager is not None}")
             
-            # Инициализируем менеджер процессов сообщений если еще не инициализирован
-            if not hasattr(process_message_manager, '_initialized'):
-                try:
-                    await process_message_manager.initialize()
-                    process_message_manager._initialized = True
-                    print(f"[CONNECT] Process message manager initialized")
-                except Exception as e:
-                    print(f"[CONNECT] Failed to initialize process message manager: {e}")
+            # Получаем изолированный менеджер процессов для пользователя
+            self.process_manager = process_message_manager_factory.get_manager(self.user.id)
+            try:
+                await self.process_manager.initialize()
+                print(f"[CONNECT] Process message manager initialized for user {self.user.id}")
+            except Exception as e:
+                print(f"[CONNECT] Failed to initialize process message manager: {e}")
         else:
             print(f"[CONNECT] Cannot create shift manager: user={self.user}, authenticated={self.user.is_authenticated if self.user else False}")
 
@@ -281,6 +280,11 @@ class KickAppChatWs(AsyncWebsocketConsumer):
         if self.shift_manager and self.user:
             await sync_to_async(self.shift_manager.end_shift)()
             await sync_to_async(cleanup_shift_manager)(self.user.id)
+        
+        # Очищаем менеджер процессов пользователя
+        if hasattr(self, 'process_manager') and self.user:
+            process_message_manager_factory.remove_manager(self.user.id)
+            print(f"[DISCONNECT] Process manager removed for user {self.user.id}")
         
         # Отключаемся от группы канала
         if self.channel_group_name and self.channel_layer is not None:
@@ -476,9 +480,9 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             
             # Отменяем все активные запросы при отмене задачи
             try:
-                if hasattr(process_message_manager, 'cancel_all_requests'):
-                    await process_message_manager.cancel_all_requests()
-                    print("Cancelled all active processes due to work task cancellation")
+                if hasattr(self, 'process_manager'):
+                    await self.process_manager.cancel_all_requests()
+                    print(f"Cancelled all active processes for user {self.user.id} due to work task cancellation")
             except Exception as e:
                 print(f"Error cancelling processes: {e}")
             
@@ -510,16 +514,16 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             print("[END_WORK] Work task cancelled")
         
         try:
-            # Отменяем все активные запросы
-            if hasattr(process_message_manager, 'cancel_all_requests'):
-                await process_message_manager.cancel_all_requests()
-                print("[END_WORK] Cancelled all active processes")
+            # Отменяем все активные запросы для этого пользователя
+            if hasattr(self, 'process_manager'):
+                await self.process_manager.cancel_all_requests()
+                print(f"[END_WORK] Cancelled all active processes for user {self.user.id}")
                 
                 # Ждем завершения всех процессов (максимум 5 секунд)
                 import time
                 start_time = time.time()
                 while time.time() - start_time < 5:
-                    stats = process_message_manager.get_stats()
+                    stats = self.process_manager.get_stats()
                     if stats['active_requests'] == 0:
                         print("[END_WORK] All processes completed")
                         break
@@ -678,8 +682,8 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 print(f"[SEND_MESSAGE] Work cancelled, skipping message from {account_login}")
                 return
             
-            # Запускаем отправку через менеджер процессов
-            await process_message_manager.send_message_async(
+            # Запускаем отправку через менеджер процессов пользователя
+            await self.process_manager.send_message_async(
                 request_id=request_id,
                 channel=channel,
                 account=account_login,
