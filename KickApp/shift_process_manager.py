@@ -10,7 +10,7 @@ import json
 import signal
 import os
 from concurrent.futures import ProcessPoolExecutor
-from KickApp.async_message_manager import message_manager
+from KickApp.process_message_manager import process_message_manager
 
 logger = logging.getLogger("kick.shift_manager")
 
@@ -48,7 +48,7 @@ class ShiftProcessManager:
         
     async def initialize(self):
         """Инициализация менеджера"""
-        await message_manager.initialize()
+        await process_message_manager.initialize()
         logger.info(f"ShiftProcessManager initialized with {self.max_processes} max processes")
     
     async def cleanup(self):
@@ -61,7 +61,7 @@ class ShiftProcessManager:
             self.process_pool.shutdown(wait=True)
         
         # Очищаем менеджер сообщений
-        await message_manager.cleanup()
+        await process_message_manager.cleanup()
         
         logger.info("ShiftProcessManager cleaned up")
     
@@ -136,7 +136,7 @@ class ShiftProcessManager:
         """Обработчик сигнала завершения"""
         logger.info(f"Received shutdown signal in process {os.getpid()}")
         # Отменяем все активные запросы
-        message_manager.cancel_all_requests()
+        asyncio.create_task(process_message_manager.cancel_all_requests())
     
     async def stop_shift(self, shift_id: str) -> bool:
         """Остановить смену"""
@@ -150,7 +150,7 @@ class ShiftProcessManager:
         
         try:
             # Отменяем все активные запросы для этой смены
-            message_manager.cancel_all_requests()
+            await process_message_manager.cancel_all_requests()
             
             # Завершаем процесс если он запущен
             if shift_info.process_id:

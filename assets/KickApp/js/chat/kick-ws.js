@@ -56,9 +56,9 @@ const socket = new WebSocket(endpoint);
       case 'KICK_CHANNEL_INFO':
         if (message) {
           console.log("KICK_CHANNEL_INFO", message);
-          showAlert(`Channel loaded: ${message.username || message.slug || ''}`, "alert-success");
+          showAlert(`Channel loaded: ${message.username || message.slug || ''}`, "alert-success", true, 2000);
         } else if (data.error) {
-          showAlert(`Channel error: ${data.error}`, "alert-danger");
+                      showAlert(`Channel error: ${data.error}`, "alert-danger", true, 3000);
         }
         break;
         case 'KICK_ACCOUNTS':
@@ -98,7 +98,7 @@ const socket = new WebSocket(endpoint);
           });
         break;
       case 'KICK_SHOW_ERROR':
-        showAlert(message, "alert-danger")
+        showAlert(message, "alert-danger", true, 4000)
         break;
       case 'KICK_START_WORK':
         console.log('[KICK-WS] KICK_START_WORK received');
@@ -107,12 +107,61 @@ const socket = new WebSocket(endpoint);
         // Запускаем авторассылку если она активна
         startAutoMessageSending();
         break;
-      case 'KICK_END_WORK':
-        console.log('[KICK_END_WORK] Starting work termination...');
-        workStatus = false;
-        window.workStatus = false; // Синхронизируем глобальное состояние
-        showAlert("Have you finished your work", "alert-success")
-        hideWorkNotification(); // Скрываем уведомление о работе
+                   case 'KICK_END_WORK':
+               console.log('[KICK_END_WORK] Starting work termination...');
+               workStatus = false;
+               window.workStatus = false; // Синхронизируем глобальное состояние
+               
+               // АГРЕССИВНАЯ ОСТАНОВКА - убиваем все процессы немедленно
+               console.log('[KICK_END_WORK] Aggressive termination started...');
+               
+               // Останавливаем авторассылку принудительно
+               try {
+                 if (window.stopOptimizedAutoMessageSending) {
+                   window.stopOptimizedAutoMessageSending();
+                 }
+                 if (window.stopAutoMessageSending) {
+                   window.stopAutoMessageSending();
+                 }
+               } catch (e) {
+                 console.error('[KICK_END_WORK] Error stopping auto messages:', e);
+               }
+               
+               // Очищаем ВСЕ интервалы агрессивно
+               clearInterval(workTimerId);
+               clearInterval(averageSendingPerMinuteId);
+               
+               // Очищаем все интервалы авторассылки
+               if (window.intervalSendAutoMessageId) {
+                 clearInterval(window.intervalSendAutoMessageId);
+                 window.intervalSendAutoMessageId = null;
+                 console.log('[KICK_END_WORK] Cleared intervalSendAutoMessageId');
+               }
+               if (window.intervalTimerSendAutoMessageId) {
+                 clearInterval(window.intervalTimerSendAutoMessageId);
+                 window.intervalTimerSendAutoMessageId = null;
+                 console.log('[KICK_END_WORK] Cleared intervalTimerSendAutoMessageId');
+               }
+               
+               // Очищаем все возможные интервалы из optimized модулей
+               if (window.optimizedAutoMessageInterval) {
+                 clearInterval(window.optimizedAutoMessageInterval);
+                 window.optimizedAutoMessageInterval = null;
+                 console.log('[KICK_END_WORK] Cleared optimizedAutoMessageInterval');
+               }
+               
+               // Убиваем все setTimeout
+               for (let i = 1; i < 1000; i++) {
+                 clearTimeout(i);
+               }
+               
+               // Убиваем все setInterval
+               for (let i = 1; i < 1000; i++) {
+                 clearInterval(i);
+               }
+               
+               // Алерт о завершении работы показывается в kick-work.js
+               hideWorkNotification(); // Скрываем уведомление о работе
         
         // Очищаем ВСЕ интервалы агрессивно
         clearInterval(workTimerId);
@@ -193,7 +242,10 @@ const socket = new WebSocket(endpoint);
         console.log('[KICK_END_WORK] Work ended successfully');
         break;
       case 'KICK_MESSAGE_SENT':
-        handleMessageResponse(data, true);
+        // Показываем алерт об успешной отправке
+        const successMessage = data.message || "Message sent successfully";
+        const successAccount = data.account || "unknown";
+        showAlert(`✅ Message sent from ${successAccount}: ${successMessage}`, "alert-success", true, 2000);
         // Обновляем скорость на основе ответа от Kick
         if (data.message && data.message.auto) {
           recordAutoMessageResponse();
@@ -203,7 +255,10 @@ const socket = new WebSocket(endpoint);
         break;
         
       case 'KICK_SEND_MESSAGE':
-        handleMessageResponse(data, true);
+        // Показываем алерт об успешной отправке
+        const sendMessage = data.message || "Message sent successfully";
+        const sendAccount = data.account || "unknown";
+        showAlert(`✅ Message sent from ${sendAccount}: ${sendMessage}`, "alert-success", true, 2000);
         // Обновляем скорость на основе ответа от Kick
         if (data.message && data.message.auto) {
           recordAutoMessageResponse();
@@ -212,7 +267,10 @@ const socket = new WebSocket(endpoint);
         }
         break;
       case 'KICK_ERROR':
-        handleMessageResponse(data, false);
+        // Показываем алерт об ошибке
+        const errorMessage = data.message || "Unknown error";
+        const account = data.account || "unknown";
+        showAlert(`❌ Failed to send from ${account}: ${errorMessage}`, "alert-danger", true, 4000);
         // Обновляем скорость на основе ответа от Kick (ошибка тоже считается)
         if (data.message && data.message.auto) {
           recordAutoMessageResponse();
@@ -221,7 +279,7 @@ const socket = new WebSocket(endpoint);
         }
         break;
       case 'KICK_CRITICAL_ERROR':
-        showAlert(message, "alert-danger")
+        showAlert(message, "alert-danger", true, 4000)
         break;
       case 'KICK_ACCOUNT_STATUS':
         import('./kick-account').then(mod => {

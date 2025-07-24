@@ -8,7 +8,7 @@ from django.db import models
 from KickApp.models import KickAccount
 from ProxyApp.models import Proxy
 from StatsApp.shift_manager import get_shift_manager, cleanup_shift_manager
-from KickApp.async_message_manager import message_manager
+from KickApp.process_message_manager import process_message_manager
 import requests
 import websockets
 import sys
@@ -254,14 +254,14 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             self.shift_manager = await sync_to_async(get_shift_manager)(self.user)
             print(f"[CONNECT] Shift manager created: {self.shift_manager is not None}")
             
-            # Инициализируем асинхронный менеджер сообщений если еще не инициализирован
-            if not hasattr(message_manager, '_initialized'):
+            # Инициализируем менеджер процессов сообщений если еще не инициализирован
+            if not hasattr(process_message_manager, '_initialized'):
                 try:
-                    await message_manager.initialize()
-                    message_manager._initialized = True
-                    print(f"[CONNECT] Async message manager initialized")
+                    await process_message_manager.initialize()
+                    process_message_manager._initialized = True
+                    print(f"[CONNECT] Process message manager initialized")
                 except Exception as e:
-                    print(f"[CONNECT] Failed to initialize async message manager: {e}")
+                    print(f"[CONNECT] Failed to initialize process message manager: {e}")
         else:
             print(f"[CONNECT] Cannot create shift manager: user={self.user}, authenticated={self.user.is_authenticated if self.user else False}")
 
@@ -473,6 +473,15 @@ class KickAppChatWs(AsyncWebsocketConsumer):
         except asyncio.CancelledError:
             print("Work task was cancelled.")
             timeout_check_task.cancel()  # Отменяем проверку таймаутов
+            
+            # Отменяем все активные запросы при отмене задачи
+            try:
+                if hasattr(process_message_manager, 'cancel_all_requests'):
+                    await process_message_manager.cancel_all_requests()
+                    print("Cancelled all active processes due to work task cancellation")
+            except Exception as e:
+                print(f"Error cancelling processes: {e}")
+            
             # Завершаем смену при отмене задачи
             await self.end_shift()
             return
@@ -494,13 +503,32 @@ class KickAppChatWs(AsyncWebsocketConsumer):
         """Stop work task and cancel all active requests"""
         print("[END_WORK] Starting work termination...")
         
+        # Отменяем задачу работы
+        if self.work_task:
+            self.work_task.cancel()
+            self.work_task = None
+            print("[END_WORK] Work task cancelled")
+        
         try:
             # Отменяем все активные запросы
-            if hasattr(message_manager, 'cancel_all_requests'):
-                message_manager.cancel_all_requests()
-                print("[END_WORK] Cancelled all active requests")
+            if hasattr(process_message_manager, 'cancel_all_requests'):
+                await process_message_manager.cancel_all_requests()
+                print("[END_WORK] Cancelled all active processes")
+                
+                # Ждем завершения всех процессов (максимум 5 секунд)
+                import time
+                start_time = time.time()
+                while time.time() - start_time < 5:
+                    stats = process_message_manager.get_stats()
+                    if stats['active_requests'] == 0:
+                        print("[END_WORK] All processes completed")
+                        break
+                    await asyncio.sleep(0.1)
+                else:
+                    print("[END_WORK] Some processes may still be running")
+                    
         except Exception as e:
-            print(f"[END_WORK] Error cancelling requests: {e}")
+            print(f"[END_WORK] Error cancelling processes: {e}")
         
         # Логируем остановку работы
         if self.shift_manager and self.user:
@@ -512,11 +540,6 @@ class KickAppChatWs(AsyncWebsocketConsumer):
         
         # Завершаем смену
         await self.end_shift()
-        
-        if self.work_task:
-            self.work_task.cancel()
-            self.work_task = None
-            print("[END_WORK] Work task cancelled")
         
         # Отправляем событие завершения работы
         await self.send(text_data=json.dumps({
@@ -530,6 +553,18 @@ class KickAppChatWs(AsyncWebsocketConsumer):
         """Handle KICK_SEND_MESSAGE event with async manager"""
         try:
             print(f"[SEND_MESSAGE] Received message data: {message_data}")
+            
+            # Проверяем, не остановлена ли работа
+            if not hasattr(self, 'work_task') or not self.work_task or self.work_task.done():
+                print(f"[SEND_MESSAGE] Work not active, rejecting message from {message_data.get('account', 'unknown')}")
+                await self.send(text_data=json.dumps({
+                    'type': 'KICK_ERROR',
+                    'message': 'Work is not active. Please start work first.',
+                    'account': message_data.get('account', 'unknown'),
+                    'channel': message_data.get('channel', 'unknown'),
+                    'text': message_data.get('message', '')
+                }))
+                return
             
             channel = message_data.get('channel')
             account_login = message_data.get('account')
@@ -619,15 +654,16 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                     # Анализируем ошибку и обновляем статус аккаунта/прокси
                     status_for_session = await self.handle_send_error(account, request.error, proxy_url)
                     
-                    # Отправляем событие о смене статуса аккаунта
-                    await self.send(text_data=json.dumps({
-                        'type': 'KICK_ACCOUNT_STATUS',
-                        'message': {
-                            'id': account.id,
-                            'login': account.login,
-                            'status': 'inactive'
-                        }
-                    }))
+                    # Отправляем событие о смене статуса аккаунта только если это не channel_restriction
+                    if status_for_session != "channel_restriction":
+                        await self.send(text_data=json.dumps({
+                            'type': 'KICK_ACCOUNT_STATUS',
+                            'message': {
+                                'id': account.id,
+                                'login': account.login,
+                                'status': 'inactive'
+                            }
+                        }))
                     
                     await self.send(text_data=json.dumps({
                         'type': 'KICK_ERROR',
@@ -637,8 +673,13 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                         'text': message_text
                     }))
             
-            # Запускаем асинхронную отправку
-            await message_manager.send_message_async(
+            # Проверяем, не отменена ли работа
+            if hasattr(self, 'work_task') and self.work_task and self.work_task.cancelled():
+                print(f"[SEND_MESSAGE] Work cancelled, skipping message from {account_login}")
+                return
+            
+            # Запускаем отправку через менеджер процессов
+            await process_message_manager.send_message_async(
                 request_id=request_id,
                 channel=channel,
                 account=account_login,
@@ -691,6 +732,12 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 # Бан - аккаунт помечается крестиком только на текущий сеанс (не в БД)
                 print(f"[handle_send_error] Account {account.login} is banned, marked as inactive for current session")
                 return "session_inactive"  # Возвращаем статус для пометки на сеанс
+                
+            elif "followers only" in error_message.lower() or "FOLLOWERS_ONLY_ERROR" in error_message:
+                # Ошибка followers only - это не проблема аккаунта, а канала
+                # Не помечаем аккаунт как неактивный, просто логируем
+                print(f"[handle_send_error] Channel requires followers only for account {account.login}")
+                return "channel_restriction"  # Возвращаем специальный статус
                 
             elif "security policy" in error_message.lower():
                 # Критическая ошибка - помечаем аккаунт как неактивный в БД

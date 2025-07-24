@@ -14,8 +14,8 @@ let autoMessageFrequency = 0;
 let autoMessageIndex = 0;
 let selectedAccounts = [];
 let autoMessages = [];
-let batchSize = 10; // Количество сообщений для одновременной отправки
-let batchDelay = 100; // Задержка между батчами в мс
+let batchSize = 50; // Количество сообщений для одновременной отправки
+let batchDelay = 50; // Задержка между батчами в мс
 
 // Оптимизированная функция для массовой отправки сообщений
 async function sendBatchMessages(batch) {
@@ -110,12 +110,12 @@ function startOptimizedAutoMessageSending() {
     }
     
     if (selectedAccounts.length === 0) {
-        showAlert("No accounts selected for auto sending", "alert-warning");
+        showAlert("No accounts selected for auto sending", "alert-warning", true, 3000);
         return;
     }
     
     if (autoMessages.length === 0) {
-        showAlert("No messages configured for auto sending", "alert-warning");
+        showAlert("No messages configured for auto sending", "alert-warning", true, 3000);
         return;
     }
     
@@ -153,7 +153,7 @@ function startOptimizedAutoMessageSending() {
         editAutoMessageBtn.disabled = true;
     }
     
-    showAlert(`🚀 Auto sending started: ${autoMessageFrequency} msg/min`, "alert-success");
+            showAlert(`🚀 Auto sending started: ${autoMessageFrequency} msg/min`, "alert-success", true, 3000);
 }
 
 // Функция для остановки оптимизированной авторассылки
@@ -205,16 +205,21 @@ function stopOptimizedAutoMessageSending() {
     
     resetAutoSpeed();
     
-    showAlert("⏹️ Auto sending stopped", "alert-info");
+    // Не показываем алерт здесь, так как он может дублироваться
     console.log('[OPTIMIZED_AUTO] Auto sending stopped completely');
 }
 
 // Функция для настройки параметров оптимизации
-function setOptimizationParams(newBatchSize = 10, newBatchDelay = 100) {
+function setOptimizationParams(newBatchSize = 50, newBatchDelay = 50) {
     batchSize = newBatchSize;
     batchDelay = newBatchDelay;
     console.log(`[OPTIMIZED_AUTO] Optimization params updated: batchSize=${batchSize}, batchDelay=${batchDelay}ms`);
 }
+
+// Делаем функции глобально доступными
+window.startOptimizedAutoMessageSending = startOptimizedAutoMessageSending;
+window.stopOptimizedAutoMessageSending = stopOptimizedAutoMessageSending;
+window.setOptimizationParams = setOptimizationParams;
 
 // Экспортируем функции
 export {

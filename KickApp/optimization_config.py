@@ -99,12 +99,11 @@ def validate_config(config):
 # Функция для применения конфигурации
 def apply_config(config):
     """Применить конфигурацию к системе"""
-    from KickApp.async_message_manager import message_manager
+    from KickApp.process_message_manager import process_message_manager
     from KickApp.shift_process_manager import shift_process_manager
     
-    # Применяем настройки к менеджеру сообщений
-    message_manager.max_concurrent_requests = config['message_manager']['max_concurrent_requests']
-    message_manager.max_workers = config['message_manager']['max_workers']
+    # Применяем настройки к менеджеру процессов сообщений
+    process_message_manager.max_concurrent_processes = config['message_manager']['max_concurrent_requests']
     
     # Применяем настройки к менеджеру смен
     shift_process_manager.max_processes = config['shift_manager']['max_processes']

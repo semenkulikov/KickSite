@@ -1,5 +1,5 @@
 import {awaitAccountsPingStatus, getKickSocket, workStatus} from "./kick-ws";
-import {showAlert} from "./alert";
+import {showAlert, clearAllAlerts} from "./alert";
 
 let workTimerId;
 
@@ -20,6 +20,21 @@ if (startWorkBtn) {
     // Показываем уведомление о работе сразу
     showWorkNotification();
     
+    // Логируем текущую частоту при старте работы
+    const freqSend = document.getElementById("frequency-send");
+    if (freqSend && freqSend.value) {
+      const freqValue = parseInt(freqSend.value) || 1;
+      getKickSocket().send(JSON.stringify({
+        type: 'KICK_LOG_ACTION',
+        action_type: 'settings_change',
+        description: `Frequency set at work start: ${freqValue} messages/min`,
+        details: {
+          action: 'frequency_loaded',
+          frequency: freqValue
+        }
+      }));
+    }
+    
     getKickSocket().send(JSON.stringify({
       "type": "KICK_START_WORK",
     "message": "Start work",
@@ -33,6 +48,14 @@ if (endWorkBtn) {
   endWorkBtn.disabled = true;
   endWorkBtn.addEventListener("click", function () {
   console.log("End work");
+    
+    // Очищаем все существующие алерты
+    clearAllAlerts();
+    
+    // Показываем один алерт о завершении работы
+    setTimeout(() => {
+      showAlert("✅ Work completed successfully", "alert-success", true, 5000);
+    }, 100);
     
     // Останавливаем автоматическую рассылку
     const autoMessageCheckbox = document.getElementById('sendAutoMessageStatus');
@@ -49,11 +72,23 @@ if (endWorkBtn) {
     // Сбрасываем все галочки в дефолтное положение
     resetAllCheckboxes();
     
+    // Останавливаем авторассылку принудительно
+    try {
+      if (window.stopOptimizedAutoMessageSending) {
+        window.stopOptimizedAutoMessageSending();
+      }
+      if (window.stopAutoMessageSending) {
+        window.stopAutoMessageSending();
+      }
+    } catch (e) {
+      console.error('[END_WORK] Error stopping auto messages:', e);
+    }
+    
     // Отправляем сообщение на сервер
     getKickSocket().send(JSON.stringify({
       "type": "KICK_END_WORK",
-    "message": "End work",
-  }));
+      "message": "End work",
+    }));
     
     // Сбрасываем workStatus
     window.workStatus = false;

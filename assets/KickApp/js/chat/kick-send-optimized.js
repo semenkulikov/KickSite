@@ -33,10 +33,22 @@ async function sendBatchMessages(messageBatch) {
 }
 
 // Оптимизированная функция отправки
+// Флаг для предотвращения повторного вызова
+let isSending = false;
+
 async function optimizedKickSend() {
+    // Защита от повторного вызова
+    if (isSending) {
+        console.log('[optimizedKickSend] Already sending, skipping...');
+        return;
+    }
+    
+    isSending = true;
+    
     let data = checkingConditions();
     if (!data) {
         console.log('[optimizedKickSend] checkingConditions returned false');
+        isSending = false;
         return;
     }
 
@@ -81,7 +93,7 @@ async function optimizedKickSend() {
                 addMessageToLogs(messageData);
                 
                 await sendBatchMessages([messageData]);
-                showAlert(`📤 Sending from ${accountLogin}...`, "alert-info");
+                // Не показываем алерт здесь, так как он может дублироваться
             }
         } else {
             // Обычный режим - отправляем со всех выбранных аккаунтов
@@ -115,7 +127,7 @@ async function optimizedKickSend() {
             
             // Отправляем все сообщения одним батчем
             await sendBatchMessages(messageBatch);
-            showAlert(`📤 Sending ${selectedAccounts.length} message(s)...`, "alert-info");
+            // Не показываем алерт здесь, так как он может дублироваться
         }
 
         // Очищаем поле ввода
@@ -136,7 +148,10 @@ async function optimizedKickSend() {
         
     } catch (error) {
         console.error('[optimizedKickSend] Error:', error);
-        showAlert(`Error sending messages: ${error.message}`, "alert-danger");
+        // Не показываем алерт здесь, так как он может дублироваться
+    } finally {
+        // Сбрасываем флаг в любом случае
+        isSending = false;
     }
 }
 
@@ -146,12 +161,13 @@ function handleMessageResponse(responseData, isSuccess) {
     
     if (isSuccess) {
         const message = responseData.text || responseData.message || "no message";
-        showAlert(`✅ Message sent from ${account}: ${message}`, "alert-success");
+        // Не показываем алерт об успехе, так как он уже показывается в kick-ws.js
+        console.log(`✅ Message sent from ${account}: ${message}`);
     } else {
         const errorMessage = responseData.message || "Unknown error";
         const alertMessage = `❌ Failed to send from ${account}: ${errorMessage}`;
         console.log(`showAlert (danger): ${alertMessage}`);
-        showAlert(alertMessage, "alert-danger");
+        // Не показываем алерт здесь, так как он уже показывается в kick-ws.js
     }
 }
 

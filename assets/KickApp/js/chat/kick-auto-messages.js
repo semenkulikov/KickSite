@@ -344,7 +344,7 @@ function startAutoMessageSending() {
   const checkbox = document.getElementById('sendAutoMessageStatus');
   if (checkbox && checkbox.checked) {
     // Настраиваем параметры оптимизации для высокой производительности
-    setOptimizationParams(20, 50); // 20 сообщений в батче, 50мс задержка
+    setOptimizationParams(50, 50); // 50 сообщений в батче, 50мс задержка
     
     // Запускаем оптимизированную авторассылка
     startOptimizedAutoMessageSending();
@@ -353,9 +353,34 @@ function startAutoMessageSending() {
 
 // Функция для остановки авторассылки при получении KICK_END_WORK
 function stopAutoMessageSending() {
+  console.log('[stopAutoMessageSending] Stopping auto message sending...');
+  
   // Останавливаем оптимизированную авторассылка
-  stopOptimizedAutoMessageSending();
+  if (window.stopOptimizedAutoMessageSending) {
+    window.stopOptimizedAutoMessageSending();
+  }
+  
+  // Очищаем все интервалы
+  if (window.intervalSendAutoMessageId) {
+    clearInterval(window.intervalSendAutoMessageId);
+    window.intervalSendAutoMessageId = null;
+  }
+  if (window.intervalTimerSendAutoMessageId) {
+    clearInterval(window.intervalTimerSendAutoMessageId);
+    window.intervalTimerSendAutoMessageId = null;
+  }
+  
+  // Сбрасываем чекбокс
+  const checkbox = document.getElementById('sendAutoMessageStatus');
+  if (checkbox) {
+    checkbox.checked = false;
+  }
+  
+  console.log('[stopAutoMessageSending] Auto message sending stopped');
 }
+
+// Делаем функцию глобально доступной
+window.stopAutoMessageSending = stopAutoMessageSending;
 
 
 
@@ -407,19 +432,21 @@ function loadAutoMessagesData() {
         console.log('Set averageSendingPerMinute to:', freqValue);
       }
       
-      // Логируем загруженную frequency в смену
-      const ws = getKickSocket();
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'KICK_LOG_ACTION',
-          action_type: 'settings_change',
-          description: `Frequency loaded: ${freqValue} messages/min`,
-          details: {
-            action: 'frequency_loaded',
-            frequency: freqValue
-          }
-        }));
-      }
+      // Логируем загруженную frequency в смену с задержкой для установки WebSocket
+      setTimeout(() => {
+        const ws = getKickSocket();
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'KICK_LOG_ACTION',
+            action_type: 'settings_change',
+            description: `Frequency loaded: ${freqValue} messages/min`,
+            details: {
+              action: 'frequency_loaded',
+              frequency: freqValue
+            }
+          }));
+        }
+      }, 1000);
     } else {
       // Если данных нет, устанавливаем значение по умолчанию
       const averageSendingPerMinute = document.getElementById("averageSendingPerMinute");
