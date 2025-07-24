@@ -108,35 +108,78 @@ const socket = new WebSocket(endpoint);
         startAutoMessageSending();
         break;
       case 'KICK_END_WORK':
+        console.log('[KICK_END_WORK] Starting work termination...');
         workStatus = false;
         window.workStatus = false; // Синхронизируем глобальное состояние
         showAlert("Have you finished your work", "alert-success")
         hideWorkNotification(); // Скрываем уведомление о работе
+        
+        // Очищаем ВСЕ интервалы агрессивно
         clearInterval(workTimerId);
         clearInterval(averageSendingPerMinuteId);
-        // Останавливаем авторассылку
-        stopAutoMessageSending();
+        
+        // Останавливаем авторассылку принудительно
+        try {
+          stopAutoMessageSending();
+          console.log('[KICK_END_WORK] Auto message sending stopped');
+        } catch (e) {
+          console.error('[KICK_END_WORK] Error stopping auto messages:', e);
+        }
+        
+        // Очищаем все интервалы авторассылки
+        if (window.intervalSendAutoMessageId) {
+          clearInterval(window.intervalSendAutoMessageId);
+          window.intervalSendAutoMessageId = null;
+          console.log('[KICK_END_WORK] Cleared intervalSendAutoMessageId');
+        }
+        if (window.intervalTimerSendAutoMessageId) {
+          clearInterval(window.intervalTimerSendAutoMessageId);
+          window.intervalTimerSendAutoMessageId = null;
+          console.log('[KICK_END_WORK] Cleared intervalTimerSendAutoMessageId');
+        }
+        
+        // Очищаем все возможные интервалы из optimized модулей
+        if (window.optimizedAutoMessageInterval) {
+          clearInterval(window.optimizedAutoMessageInterval);
+          window.optimizedAutoMessageInterval = null;
+          console.log('[KICK_END_WORK] Cleared optimizedAutoMessageInterval');
+        }
+        
         // Turn off auto message sending checkbox
         const autoMessageCheckbox = document.getElementById('sendAutoMessageStatus');
-        if (autoMessageCheckbox.checked) {
+        if (autoMessageCheckbox && autoMessageCheckbox.checked) {
           autoMessageCheckbox.checked = false;
         }
+        
         // Reset UI elements
-        document.getElementById("averageSendingPerMinute").innerText = "0"
-        document.getElementById("autoMessagesCount").innerText = "0"
-        document.getElementById("timerAutoMessage").innerText = "00:01:00"
+        const avgElement = document.getElementById("averageSendingPerMinute");
+        if (avgElement) avgElement.innerText = "0";
+        
+        const countElement = document.getElementById("autoMessagesCount");
+        if (countElement) countElement.innerText = "0";
+        
+        const timerElement = document.getElementById("timerAutoMessage");
+        if (timerElement) timerElement.innerText = "00:01:00";
+        
         // Сбрасываем счетчики скорости
-        document.getElementById("chatSpeed").innerText = "0.00"
-        document.getElementById("autoSpeed").innerText = "0.00"
+        const chatSpeedElement = document.getElementById("chatSpeed");
+        if (chatSpeedElement) chatSpeedElement.innerText = "0.00";
+        
+        const autoSpeedElement = document.getElementById("autoSpeed");
+        if (autoSpeedElement) autoSpeedElement.innerText = "0.00";
+        
         // Remove auto-send highlighting from accounts
         let accounts = document.getElementsByClassName('account');
         for (let account of accounts) {
           account.classList.remove("account-auto-send");
         }
+        
         // Очищаем pendingMessages из kick-send.js
         if (window.pendingMessages) {
           window.pendingMessages.clear();
+          console.log('[KICK_END_WORK] Cleared pending messages');
         }
+        
         // Сбрасываем счетчики скорости в speed-manager
         if (window.resetChatSpeed) {
           window.resetChatSpeed();
@@ -144,8 +187,10 @@ const socket = new WebSocket(endpoint);
         if (window.resetAutoSpeed) {
           window.resetAutoSpeed();
         }
+        
         // Update button states
         updateWorkButtonsState();
+        console.log('[KICK_END_WORK] Work ended successfully');
         break;
       case 'KICK_MESSAGE_SENT':
         handleMessageResponse(data, true);

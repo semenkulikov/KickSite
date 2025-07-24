@@ -4,6 +4,7 @@ import {addMessageToLogs} from "./kick-input-logs";
 import {getKickSocket, workStatus} from "./kick-ws";
 import {showAlert} from "./alert";
 import {recordAutoMessageSent, resetAutoSpeed} from "./speed-manager";
+import {startOptimizedAutoMessageSending, stopOptimizedAutoMessageSending, setOptimizationParams} from "./kick-auto-messages-optimized";
 
 let intervalSendAutoMessageId;
 let intervalTimerSendAutoMessageId;
@@ -341,33 +342,19 @@ document.getElementById('sendAutoMessageStatus').addEventListener("click", funct
 // Функция для запуска авторассылки при получении KICK_START_WORK
 function startAutoMessageSending() {
   const checkbox = document.getElementById('sendAutoMessageStatus');
-  if (checkbox && checkbox.checked && isAutoSendingActive) {
-    // Авторассылка уже настроена, просто запускаем таймер
-    autoMessageStartTime = Date.now();
+  if (checkbox && checkbox.checked) {
+    // Настраиваем параметры оптимизации для высокой производительности
+    setOptimizationParams(20, 50); // 20 сообщений в батче, 50мс задержка
+    
+    // Запускаем оптимизированную авторассылка
+    startOptimizedAutoMessageSending();
   }
 }
 
 // Функция для остановки авторассылки при получении KICK_END_WORK
 function stopAutoMessageSending() {
-  clearInterval(intervalSendAutoMessageId);
-  clearInterval(intervalTimerSendAutoMessageId);
-  isAutoSendingActive = false;
-  autoMessageStartTime = null;
-  
-  const checkbox = document.getElementById('sendAutoMessageStatus');
-  if (checkbox) {
-    checkbox.checked = false;
-  }
-  
-  const editAutoMessageBtn = document.getElementById("editAutoMessage");
-  if (editAutoMessageBtn) {
-    editAutoMessageBtn.disabled = false;
-  }
-  
-  // Сбрасываем счетчики автосообщений
-  autoMessagesSent = 0;
-  autoMessageIndex = 0; // Сбрасываем индекс сообщений
-  resetAutoSpeed(); // Сбрасываем скорость автосообщений
+  // Останавливаем оптимизированную авторассылка
+  stopOptimizedAutoMessageSending();
 }
 
 

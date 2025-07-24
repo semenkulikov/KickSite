@@ -4,6 +4,7 @@ import {selectAccount} from "./kick-account";
 import {getKickSocket, workStatus} from "./kick-ws";
 import {isAutoSendingActive} from "./kick-auto-messages";
 import {recordChatMessageSent, updateChatSpeed} from "./speed-manager";
+import {optimizedKickSend, sendBatchMessages} from "./kick-send-optimized";
 
 let averageSendingPerMinuteId;
 let pendingMessages = new Map(); // Отслеживание ожидающих отправки сообщений
@@ -15,7 +16,7 @@ let chatMessagesSent = 0;
 let chatStartTime = null;
 
 $('#sendInputMessage').on("click", () => {
-  kickSend();
+  optimizedKickSend();
 });
 
 const dateOptions = {
@@ -32,7 +33,7 @@ $('#inputMessage').on('keydown', function(event) {
   if (event.key === 'Enter') {
     event.preventDefault();
 
-    kickSend();
+    optimizedKickSend();
   }
 });
 

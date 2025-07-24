@@ -8,6 +8,7 @@ from django.db import models
 from KickApp.models import KickAccount
 from ProxyApp.models import Proxy
 from StatsApp.shift_manager import get_shift_manager, cleanup_shift_manager
+from KickApp.async_message_manager import message_manager
 import requests
 import websockets
 import sys
@@ -252,6 +253,15 @@ class KickAppChatWs(AsyncWebsocketConsumer):
         if self.user and self.user.is_authenticated:
             self.shift_manager = await sync_to_async(get_shift_manager)(self.user)
             print(f"[CONNECT] Shift manager created: {self.shift_manager is not None}")
+            
+            # Инициализируем асинхронный менеджер сообщений если еще не инициализирован
+            if not hasattr(message_manager, '_initialized'):
+                try:
+                    await message_manager.initialize()
+                    message_manager._initialized = True
+                    print(f"[CONNECT] Async message manager initialized")
+                except Exception as e:
+                    print(f"[CONNECT] Failed to initialize async message manager: {e}")
         else:
             print(f"[CONNECT] Cannot create shift manager: user={self.user}, authenticated={self.user.is_authenticated if self.user else False}")
 
@@ -481,7 +491,17 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 break
 
     async def end_work(self):
-        """Stop work task"""
+        """Stop work task and cancel all active requests"""
+        print("[END_WORK] Starting work termination...")
+        
+        try:
+            # Отменяем все активные запросы
+            if hasattr(message_manager, 'cancel_all_requests'):
+                message_manager.cancel_all_requests()
+                print("[END_WORK] Cancelled all active requests")
+        except Exception as e:
+            print(f"[END_WORK] Error cancelling requests: {e}")
+        
         # Логируем остановку работы
         if self.shift_manager and self.user:
             await sync_to_async(self.shift_manager.log_action)(
@@ -496,13 +516,18 @@ class KickAppChatWs(AsyncWebsocketConsumer):
         if self.work_task:
             self.work_task.cancel()
             self.work_task = None
-            await self.send(text_data=json.dumps({
-                'event': 'KICK_END_WORK',
-                'message': 'Work stopped'
-            }))
+            print("[END_WORK] Work task cancelled")
+        
+        # Отправляем событие завершения работы
+        await self.send(text_data=json.dumps({
+            'event': 'KICK_END_WORK',
+            'message': 'Work stopped'
+        }))
+        
+        print("[END_WORK] Work termination completed")
 
     async def handle_send_message(self, message_data):
-        """Handle KICK_SEND_MESSAGE event"""
+        """Handle KICK_SEND_MESSAGE event with async manager"""
         try:
             print(f"[SEND_MESSAGE] Received message data: {message_data}")
             
@@ -561,15 +586,8 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 }))
                 return
 
-            # Отправляем сообщение через cloudscraper
-            result = await send_kick_message_cloudscraper(
-                chatbot_id=account.id,
-                channel=channel,
-                message=message_text,
-                token=token,
-                session_token=session_token,
-                proxy_url=proxy_url
-            )
+            # Создаем уникальный ID для запроса
+            request_id = f"{account_login}_{channel}_{int(time.time() * 1000)}"
             
             # Определяем тип сообщения (авто или ручное)
             message_type = 'a' if message_data.get('auto', False) else 'm'
@@ -577,45 +595,60 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             # Логируем попытку отправки сообщения
             await self.log_message_to_shift(channel, account_login, message_type, message_text)
             
-            if result is True:
-                success_msg = f'✅ Message sent successfully from {account_login} to {channel}: "{message_text}"'
-                print(f"[SEND_MESSAGE] {success_msg}")
-                
-                await self.send(text_data=json.dumps({
-                    'type': 'KICK_MESSAGE_SENT',
-                    'message': success_msg,
-                    'account': account_login,
-                    'channel': channel,
-                    'text': message_text
-                }))
-            else:
-                # result содержит текст ошибки
-                error_msg = f'❌ Failed to send message from {account_login} to {channel}: {result}'
-                print(f"[SEND_MESSAGE] {error_msg}")
-                
-                # Логируем ошибку отправки
-                await self.log_message_to_shift(channel, account_login, 'e', f"ERROR: {result}")
-                
-                # Анализируем ошибку и обновляем статус аккаунта/прокси
-                status_for_session = await self.handle_send_error(account, result, proxy_url)
-                
-                # Отправляем событие о смене статуса аккаунта
-                await self.send(text_data=json.dumps({
-                    'type': 'KICK_ACCOUNT_STATUS',
-                    'message': {
-                        'id': account.id,
-                        'login': account.login,
-                        'status': 'inactive'
-                    }
-                }))
-                
-                await self.send(text_data=json.dumps({
-                    'type': 'KICK_ERROR',
-                    'message': error_msg,
-                    'account': account_login,
-                    'channel': channel,
-                    'text': message_text
-                }))
+            # Отправляем сообщение через асинхронный менеджер
+            async def message_callback(request):
+                """Callback для обработки результата отправки"""
+                if request.status.value == 'success':
+                    success_msg = f'✅ Message sent successfully from {account_login} to {channel}: "{message_text}"'
+                    print(f"[SEND_MESSAGE] {success_msg}")
+                    
+                    await self.send(text_data=json.dumps({
+                        'type': 'KICK_MESSAGE_SENT',
+                        'message': success_msg,
+                        'account': account_login,
+                        'channel': channel,
+                        'text': message_text
+                    }))
+                else:
+                    error_msg = f'❌ Failed to send message from {account_login} to {channel}: {request.error}'
+                    print(f"[SEND_MESSAGE] {error_msg}")
+                    
+                    # Логируем ошибку отправки
+                    await self.log_message_to_shift(channel, account_login, 'e', f"ERROR: {request.error}")
+                    
+                    # Анализируем ошибку и обновляем статус аккаунта/прокси
+                    status_for_session = await self.handle_send_error(account, request.error, proxy_url)
+                    
+                    # Отправляем событие о смене статуса аккаунта
+                    await self.send(text_data=json.dumps({
+                        'type': 'KICK_ACCOUNT_STATUS',
+                        'message': {
+                            'id': account.id,
+                            'login': account.login,
+                            'status': 'inactive'
+                        }
+                    }))
+                    
+                    await self.send(text_data=json.dumps({
+                        'type': 'KICK_ERROR',
+                        'message': error_msg,
+                        'account': account_login,
+                        'channel': channel,
+                        'text': message_text
+                    }))
+            
+            # Запускаем асинхронную отправку
+            await message_manager.send_message_async(
+                request_id=request_id,
+                channel=channel,
+                account=account_login,
+                message=message_text,
+                token=token,
+                session_token=session_token,
+                proxy_url=proxy_url,
+                callback=message_callback
+            )
+            
         except Exception as e:
             print(f"[SEND_MESSAGE] Exception: {e}")
             await self.send(text_data=json.dumps({
@@ -654,7 +687,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 print(f"[handle_send_error] Account {account.login} marked as inactive for current session due to proxy error")
                 return "session_inactive"  # Возвращаем статус для пометки на сеанс
                 
-            elif "banned" in error_message.lower() or "blocked" in error_message.lower():
+            elif "banned" in error_message.lower() or "blocked" in error_message.lower() or "BANNED_ERROR" in error_message:
                 # Бан - аккаунт помечается крестиком только на текущий сеанс (не в БД)
                 print(f"[handle_send_error] Account {account.login} is banned, marked as inactive for current session")
                 return "session_inactive"  # Возвращаем статус для пометки на сеанс
