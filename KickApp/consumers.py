@@ -454,6 +454,11 @@ class KickAppChatWs(AsyncWebsocketConsumer):
 
         print(f'Starting work for channel: {self.channel_group_name}')
         
+        # Сбрасываем состояние менеджера процессов для новой работы
+        if hasattr(self, 'process_manager'):
+            await self.process_manager.reset_state()
+            print(f"[START_WORK] Process manager reset for user {self.user.id}")
+        
         # Начинаем смену
         shift = await self.start_shift()
         

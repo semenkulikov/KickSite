@@ -236,6 +236,14 @@ class ProcessMessageManager:
         
         logger.info(f"ProcessMessageManager initialized with {self.max_concurrent_processes} concurrent processes")
     
+    async def reset_state(self):
+        """Сброс состояния менеджера для возобновления работы"""
+        with self._lock:
+            self._shutdown = False
+            self.cancellation_event.clear()
+            send_message_process._cancelled = False
+            logger.info("ProcessMessageManager state reset - ready for new work")
+    
     async def cleanup(self):
         """Очистка ресурсов"""
         self._shutdown = True
@@ -523,6 +531,11 @@ class ProcessMessageManagerFactory:
             if user_id not in self.managers:
                 self.managers[user_id] = ProcessMessageManager(max_concurrent_processes=max_processes)
                 logger.info(f"Created new ProcessMessageManager for user {user_id}")
+            else:
+                # Если менеджер уже существует, сбрасываем его состояние
+                manager = self.managers[user_id]
+                asyncio.create_task(manager.reset_state())
+                logger.info(f"Reset existing ProcessMessageManager for user {user_id}")
             return self.managers[user_id]
     
     def remove_manager(self, user_id: int):
