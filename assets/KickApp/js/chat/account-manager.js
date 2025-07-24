@@ -65,7 +65,9 @@ class AccountManager {
     
     // Обновляем состояние кнопок после изменения режима
     if (window.updateChatButtonsState) {
-      window.updateChatButtonsState();
+      setTimeout(() => {
+        window.updateChatButtonsState();
+      }, 100);
     }
   }
   
@@ -207,7 +209,9 @@ class AccountManager {
     
     // Обновляем состояние кнопок
     if (window.updateChatButtonsState) {
-      window.updateChatButtonsState();
+      setTimeout(() => {
+        window.updateChatButtonsState();
+      }, 50);
     }
   }
   

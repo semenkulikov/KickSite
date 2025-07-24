@@ -36,7 +36,10 @@ def user_shifts(request, user_id):
             'end_time': shift.end_time.strftime('%d.%m.%Y %H:%M:%S') if shift.end_time else 'Active',
             'duration': shift.duration_str,
             'total_messages': shift.total_messages,
+            'auto_messages': shift.auto_messages,
             'average_speed': shift.average_speed,
+            'auto_speed': shift.auto_speed,
+            'set_frequency': shift.set_frequency,  # Добавляем выставленную частоту
             'timeouts_count': shift.timeouts_count,
             'is_active': shift.is_active
         })
@@ -73,7 +76,10 @@ def shift_log_download(request, shift_id):
     log_content += f"Конец: {statistics['end_time']}\n"
     log_content += f"Длительность: {statistics['duration']}\n"
     log_content += f"Всего сообщений: {statistics['total_messages']}\n"
+    log_content += f"Автосообщений: {statistics['auto_messages']}\n"
     log_content += f"Средняя скорость: {statistics['average_speed']} сообщений/мин\n"
+    log_content += f"Скорость авто: {statistics['auto_speed']} сообщений/мин\n"
+    log_content += f"Выставленная частота: {statistics['set_frequency']} сообщений/мин\n"
     log_content += f"Количество отходов: {statistics['timeouts_count']}\n"
     log_content += f"Общее время отходов: {statistics['total_timeout_duration']} сек\n\n"
     

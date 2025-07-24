@@ -15,7 +15,10 @@ class Shift(models.Model):
     end_time = models.DateTimeField(verbose_name='End Time', null=True, blank=True)
     is_active = models.BooleanField(verbose_name='Active', default=True)
     total_messages = models.IntegerField(verbose_name='Total Messages', default=0)
+    auto_messages = models.IntegerField(verbose_name='Auto Messages', default=0)
     average_speed = models.FloatField(verbose_name='Average Speed (msg/min)', default=0.0)
+    auto_speed = models.FloatField(verbose_name='Auto Speed (msg/min)', default=0.0)
+    set_frequency = models.FloatField(verbose_name='Set Frequency (msg/min)', default=0.0)  # Выставленная частота
     timeouts_count = models.IntegerField(verbose_name='Timeouts Count', default=0)
     total_timeout_duration = models.IntegerField(verbose_name='Total Timeout Duration (seconds)', default=0)
     
@@ -50,6 +53,9 @@ class Shift(models.Model):
             duration_minutes = self.duration.total_seconds() / 60
             if duration_minutes > 0:
                 self.average_speed = round(self.total_messages / duration_minutes, 2)
+                # Рассчитываем скорость автосообщений
+                if self.auto_messages > 0:
+                    self.auto_speed = round(self.auto_messages / duration_minutes, 2)
             
             # Рассчитываем общую длительность таймаутов
             total_timeout_seconds = sum(

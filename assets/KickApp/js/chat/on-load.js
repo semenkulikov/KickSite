@@ -30,6 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log("Load auto-messages if exists")
   loadAutoMessagesData()
 
+  // Инициализируем AccountManager
+  window.accountManager = new AccountManager();
+
   $("#inputMessage").focus();
 
   // Изначально деактивируем кнопки Chat и Auto Messages до загрузки аккаунтов

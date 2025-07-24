@@ -3,11 +3,15 @@ import {getAutoMessages, addAutoMessages, clearAllAutoMessages, openAutoMessages
 import {addMessageToLogs} from "./kick-input-logs";
 import {getKickSocket, workStatus} from "./kick-ws";
 import {showAlert} from "./alert";
+import {recordAutoMessageSent, resetAutoSpeed} from "./speed-manager";
 
 let intervalSendAutoMessageId;
 let intervalTimerSendAutoMessageId;
 let isAutoSendingActive = false; // Глобальная переменная для отслеживания состояния авторассылки
 let autoMessageStartTime = null; // Время начала авторассылки
+let autoMessagesSent = 0; // Счетчик отправленных автосообщений
+let autoMessageFrequency = 0; // Частота автосообщений
+let autoMessageIndex = 0; // Индекс текущего сообщения для последовательной отправки
 
 if (document.getElementById("editAutoMessage")) {
 document.getElementById("editAutoMessage").addEventListener("click", function () {
@@ -15,6 +19,84 @@ document.getElementById("editAutoMessage").addEventListener("click", function ()
   document.getElementById("autoMessageTextArea").value = '';
   loadAutoMessagesData();
 });
+}
+
+// Добавляем обработчик для обновления preview при вводе
+document.addEventListener('DOMContentLoaded', function() {
+  initializeMessagePreview();
+  
+  // Добавляем обработчик для модального окна
+  const modal = document.getElementById('editAutoMessageModal');
+  if (modal) {
+    modal.addEventListener('shown.bs.modal', function() {
+      console.log('[Modal] Modal shown, updating preview');
+      setTimeout(updateMessagePreview, 100);
+    });
+  }
+  
+  // Добавляем обработчик изменения frequency через слайдер
+  const frequencyInput = document.getElementById("autoMessageFrequencyInput");
+  if (frequencyInput) {
+    frequencyInput.addEventListener('input', function() {
+      const freqValue = parseInt(this.value) || 1;
+      const freqSend = document.getElementById("frequency-send");
+      if (freqSend) {
+        freqSend.value = freqValue;
+      }
+      
+      // Логируем изменение frequency в смену
+      const ws = getKickSocket();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'KICK_LOG_ACTION',
+          action_type: 'settings_change',
+          description: `Frequency changed to ${freqValue} messages/min`,
+          details: {
+            action: 'frequency_change',
+            frequency: freqValue
+          }
+        }));
+      }
+    });
+  }
+  
+  // Добавляем обработчик изменения frequency через input поле
+  const freqSend = document.getElementById("frequency-send");
+  if (freqSend) {
+    freqSend.addEventListener('input', function() {
+      const freqValue = parseInt(this.value) || 1;
+      
+      // Логируем изменение frequency в смену
+      const ws = getKickSocket();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'KICK_LOG_ACTION',
+          action_type: 'settings_change',
+          description: `Frequency changed to ${freqValue} messages/min`,
+          details: {
+            action: 'frequency_change',
+            frequency: freqValue
+          }
+        }));
+      }
+    });
+  }
+});
+
+function initializeMessagePreview() {
+  const textarea = document.getElementById("autoMessageTextArea");
+  if (textarea) {
+    console.log('[initializeMessagePreview] Setting up event listeners for textarea');
+    textarea.addEventListener('input', updateMessagePreview);
+    textarea.addEventListener('keyup', updateMessagePreview);
+    textarea.addEventListener('change', updateMessagePreview);
+    textarea.addEventListener('paste', updateMessagePreview);
+    
+    // Initial update
+    setTimeout(updateMessagePreview, 100);
+  } else {
+    console.error('[initializeMessagePreview] Textarea not found');
+  }
 }
 
 // Загружаем данные при старте страницы
@@ -70,15 +152,31 @@ document.getElementById('sendAutoMessageStatus').addEventListener("click", funct
           // Загружаем сообщения из базы данных
           getAutoMessages().then((messages) => {
             if (messages && messages.length) {
-              // Получаем частоту из базы данных
-              getFrequency().then((frequency) => {
-                let freq = frequency ? frequency.value : 1;
-                
-                // Принудительно обновляем отображение Messages/minutes
-                const averageSendingPerMinute = document.getElementById("averageSendingPerMinute");
-                if (averageSendingPerMinute) {
-                  averageSendingPerMinute.innerText = freq;
-                }
+                              // Получаем частоту из базы данных
+                getFrequency().then((frequency) => {
+                  let freq = frequency && frequency.value ? parseInt(frequency.value) || 1 : 1;
+                  autoMessageFrequency = freq;
+                  
+                  // Принудительно обновляем отображение Messages/minutes
+                  const averageSendingPerMinute = document.getElementById("averageSendingPerMinute");
+                  if (averageSendingPerMinute) {
+                    averageSendingPerMinute.innerText = freq.toString();
+                  }
+                  
+                  // Логируем frequency в смену при запуске авторассылки
+                  const ws = getKickSocket();
+                  if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                      type: 'KICK_LOG_ACTION',
+                      action_type: 'settings_change',
+                      description: `Auto messages started with frequency ${freq} messages/min`,
+                      details: {
+                        action: 'auto_frequency_set',
+                        frequency: freq
+                      }
+                    }));
+                  }
+
                 
                 const editAutoMessageBtn = document.getElementById("editAutoMessage");
                 if (editAutoMessageBtn) {
@@ -113,20 +211,24 @@ document.getElementById('sendAutoMessageStatus').addEventListener("click", funct
                     
                     if (currentSelectedAccount && currentSelectedAccount.value && messages && messages.length > 0) {
                       let accountLogin = currentSelectedAccount.value;
-                      // Выбираем случайное сообщение из массива
-                      let randomMessage = messages[Math.floor(Math.random() * messages.length)];
+                      // Выбираем следующее сообщение по порядку
+                      let message = messages[autoMessageIndex % messages.length];
                       let data = {
                           "channel": channel,
                           "account": accountLogin,
-                          "message": randomMessage,
+                          "message": message,
                           "auto": true
                       }
                       // Возвращаем логи в глобальные
                       addMessageToLogs(data);
+                      recordAutoMessageSent(); // Записываем отправку автосообщения
                       getKickSocket().send(JSON.stringify({
                           "type": "KICK_SEND_MESSAGE",
                           "message": data,
                       }));
+                      
+                      // Увеличиваем индекс для следующего сообщения
+                      autoMessageIndex++;
                     }
                   } else {
                     // Старая логика для обычного режима
@@ -139,20 +241,24 @@ document.getElementById('sendAutoMessageStatus').addEventListener("click", funct
                       
                       if (selectedAccount && selectedAccount.value) {
                         let accountLogin = selectedAccount.value;
-                        // Выбираем случайное сообщение из массива
-                        let randomMessage = messages[Math.floor(Math.random() * messages.length)];
+                        // Выбираем следующее сообщение по порядку
+                        let message = messages[autoMessageIndex % messages.length];
                         let data = {
                             "channel": channel,
                             "account": accountLogin,
-                            "message": randomMessage,
+                            "message": message,
                             "auto": true
                         }
                         // Возвращаем логи в глобальные
                         addMessageToLogs(data);
+                        recordAutoMessageSent(); // Записываем отправку автосообщения
                         getKickSocket().send(JSON.stringify({
                             "type": "KICK_SEND_MESSAGE",
                             "message": data,
                         }));
+                        
+                        // Увеличиваем индекс для следующего сообщения
+                        autoMessageIndex++;
                       }
                     }
                   }
@@ -257,6 +363,46 @@ function stopAutoMessageSending() {
   if (editAutoMessageBtn) {
     editAutoMessageBtn.disabled = false;
   }
+  
+  // Сбрасываем счетчики автосообщений
+  autoMessagesSent = 0;
+  autoMessageIndex = 0; // Сбрасываем индекс сообщений
+  resetAutoSpeed(); // Сбрасываем скорость автосообщений
+}
+
+
+
+function updateMessagePreview() {
+  const textarea = document.getElementById("autoMessageTextArea");
+  const preview = document.getElementById("messagePreview");
+  const count = document.getElementById("messageCount");
+  
+  if (textarea && preview && count) {
+    const messages = textarea.value.split("\n").map(line => line.trim()).filter(line => line !== "");
+    
+    console.log('[updateMessagePreview] Messages count:', messages.length);
+    console.log('[updateMessagePreview] Messages:', messages);
+    
+    // Обновляем счетчик
+    count.innerText = messages.length;
+    
+    // Обновляем preview
+    if (messages.length > 0) {
+      let previewHtml = '';
+      messages.forEach((message, index) => {
+        previewHtml += `<div class="mb-1"><small class="text-muted">${index + 1}.</small> <span class="text-white">${message.substring(0, 50)}${message.length > 50 ? '...' : ''}</span></div>`;
+      });
+      preview.innerHTML = previewHtml;
+    } else {
+      preview.innerHTML = '<small class="text-muted">Messages will appear here...</small>';
+    }
+  } else {
+    console.error('[updateMessagePreview] Required elements not found:', {
+      textarea: !!textarea,
+      preview: !!preview,
+      count: !!count
+    });
+  }
 }
 
 function loadAutoMessagesData() {
@@ -265,12 +411,27 @@ function loadAutoMessagesData() {
   getFrequency().then((frequency) => {
     console.log('Frequency loaded:', frequency);
     if (frequency && frequency.value) {
-      changeViewFrequency(frequency.value);
+      const freqValue = parseInt(frequency.value) || 1;
+      changeViewFrequency(freqValue);
       // Обновляем отображение Messages/minutes при загрузке
       const averageSendingPerMinute = document.getElementById("averageSendingPerMinute");
       if (averageSendingPerMinute) {
-        averageSendingPerMinute.innerText = frequency.value;
-        console.log('Set averageSendingPerMinute to:', frequency.value);
+        averageSendingPerMinute.innerText = freqValue.toString();
+        console.log('Set averageSendingPerMinute to:', freqValue);
+      }
+      
+      // Логируем загруженную frequency в смену
+      const ws = getKickSocket();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'KICK_LOG_ACTION',
+          action_type: 'settings_change',
+          description: `Frequency loaded: ${freqValue} messages/min`,
+          details: {
+            action: 'frequency_loaded',
+            frequency: freqValue
+          }
+        }));
       }
     } else {
       // Если данных нет, устанавливаем значение по умолчанию
@@ -294,9 +455,26 @@ function loadAutoMessagesData() {
     console.log('Messages loaded:', messages);
     if (messages && messages.length > 0) {
       changeViewAutoMessages(messages);
+      
+      // Обновляем отображение количества автосообщений в новом элементе
+      const autoMessagesElement = document.getElementById("autoMessagesCount");
+      if (autoMessagesElement) {
+        autoMessagesElement.innerText = messages.length;
+      }
+    } else {
+      // Если нет сообщений, показываем 0
+      const autoMessagesElement = document.getElementById("autoMessagesCount");
+      if (autoMessagesElement) {
+        autoMessagesElement.innerText = "0";
+      }
     }
   }).catch((error) => {
     console.error('Error loading messages:', error);
+    // При ошибке показываем 0
+    const autoMessagesElement = document.getElementById("autoMessagesCount");
+    if (autoMessagesElement) {
+      autoMessagesElement.innerText = "0";
+    }
   });
 }
 
@@ -311,10 +489,11 @@ function selectAutoSendAccounts(selectedAccounts) {
 }
 
 function changeViewFrequency(frequency) {
+  const freqValue = parseInt(frequency) || 1;
   const freqInput = document.getElementById("autoMessageFrequencyInput");
   const freqSend = document.getElementById("frequency-send");
-  if (freqInput) freqInput.value = frequency;
-  if (freqSend) freqSend.value = frequency;
+  if (freqInput) freqInput.value = freqValue;
+  if (freqSend) freqSend.value = freqValue;
 }
 
 function changeViewAutoMessages(messages) {
@@ -325,6 +504,9 @@ function changeViewAutoMessages(messages) {
     messages.forEach((message) => {
       autoMessageTextArea.value = autoMessageTextArea.value + message + "\n"
     });
+    // Обновляем preview после загрузки сообщений
+    console.log('[changeViewAutoMessages] Messages loaded, updating preview');
+    setTimeout(updateMessagePreview, 50);
   }
 }
 
@@ -339,7 +521,8 @@ function saveAutoMessages() {
 
   let messages = autoMessageTextArea.value.split("\n").map((element) => element.trim()).filter((element) => element !== "");
   if (messages.length) {
-    addOrUpdateFrequencyDB(frequencySend.value);
+    const freqValue = parseInt(frequencySend.value) || 1;
+    addOrUpdateFrequencyDB(freqValue);
 
     // Логируем изменение частоты и сообщений
     const ws = getKickSocket();
@@ -347,10 +530,10 @@ function saveAutoMessages() {
       ws.send(JSON.stringify({
         type: 'KICK_LOG_ACTION',
         action_type: 'settings_change',
-        description: `Frequency changed to ${frequencySend.value} messages/min, ${messages.length} messages saved`,
+        description: `Frequency changed to ${freqValue} messages/min, ${messages.length} messages saved`,
         details: {
           action: 'frequency_and_messages_change',
-          frequency: frequencySend.value,
+          frequency: freqValue,
           messages_count: messages.length
         }
       }));
@@ -362,10 +545,16 @@ function saveAutoMessages() {
         showAlert("Messages are saved", "alert-success")
         console.log("Messages are saved");
         
-        // Обновляем отображение Messages/minutes
+        // Обновляем отображение количества автосообщений в новом элементе
+        const autoMessagesElement = document.getElementById("autoMessagesCount");
+        if (autoMessagesElement) {
+          autoMessagesElement.innerText = messages.length;
+        }
+
+        // Обновляем отображение frequency
         const averageSendingPerMinute = document.getElementById("averageSendingPerMinute");
         if (averageSendingPerMinute) {
-          averageSendingPerMinute.innerText = frequencySend.value;
+          averageSendingPerMinute.innerText = freqValue.toString();
         }
 
         setTimeout(function() { 

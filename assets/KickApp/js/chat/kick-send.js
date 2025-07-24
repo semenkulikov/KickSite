@@ -3,11 +3,16 @@ import {addMessageToLogs} from "./kick-input-logs";
 import {selectAccount} from "./kick-account";
 import {getKickSocket, workStatus} from "./kick-ws";
 import {isAutoSendingActive} from "./kick-auto-messages";
+import {recordChatMessageSent, updateChatSpeed} from "./speed-manager";
 
 let averageSendingPerMinuteId;
 let pendingMessages = new Map(); // Отслеживание ожидающих отправки сообщений
 // Делаем pendingMessages доступным глобально для очистки при остановке работы
 window.pendingMessages = pendingMessages;
+
+// Переменные для отслеживания скорости
+let chatMessagesSent = 0;
+let chatStartTime = null;
 
 $('#sendInputMessage').on("click", () => {
   kickSend();
@@ -73,6 +78,7 @@ function kickSend() {
           });
           
           messagesSent++;
+          recordChatMessageSent(); // Записываем отправку ручного сообщения
           addMessageToLogs(messageData);
           
           getKickSocket().send(JSON.stringify({
@@ -107,6 +113,7 @@ function kickSend() {
           });
           
           messagesSent++;
+          recordChatMessageSent(); // Записываем отправку ручного сообщения
           addMessageToLogs(messageData);
           
           getKickSocket().send(JSON.stringify({
@@ -190,9 +197,15 @@ function countingSendingPerMinute(data) {
     if (!isAutoSendingActive) {
       document.getElementById("averageSendingPerMinute").innerText = messagesPerMinute;
     }
+    
+    // Обновляем скорость чата
+    updateChatSpeed();
+    
     // console.log(`Messages/minute: ${messagesPerMinute}`)
   }, 5000)
 }
+
+
 
 function checkingConditions() {
   console.log('[checkingConditions] Starting validation...');

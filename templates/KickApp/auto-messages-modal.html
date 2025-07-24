@@ -1,19 +1,38 @@
 <!-- Modal Edit auto-messages -->
 <div class="modal fade" id="editAutoMessageModal" tabindex="-1" aria-labelledby="editAutoMessageModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content bg-dark" style="border-radius: 16px;">
             <div class="modal-header">
                 <h5 class="modal-title" id="editAutoMessageModalLabel">Edit auto-messages</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
-                    <label for="autoMessageTextArea">Messages (one per line):</label>
-                    <textarea id="autoMessageTextArea" class="form-control" rows="8" style="background: #18181b; color: #fff; border-radius: 10px;"></textarea>
-                </div>
-                <div class="form-group mt-3">
-                    <label for="frequency-send">Frequency (messages/min):</label>
-                    <input type="number" id="frequency-send" class="form-control autoMessageFrequencyInput" min="1" max="60" value="1" style="width: 120px; display: inline-block; margin-left: 10px;">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="form-group">
+                            <label for="autoMessageTextArea" class="text-white">Messages (one per line):</label>
+                            <textarea id="autoMessageTextArea" class="form-control" rows="12" style="background: #18181b; color: #fff; border-radius: 10px; font-family: monospace;" placeholder="Enter your messages here, one per line..."></textarea>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group mb-3">
+                            <label for="frequency-send" class="text-white">Frequency (messages/min):</label>
+                            <input type="number" id="frequency-send" class="form-control autoMessageFrequencyInput" min="1" max="60" value="1" style="background: #18181b; color: #fff; border-radius: 10px;">
+                        </div>
+                        <div class="card" style="background: #23232a; border: 1px solid #2d2d3a;">
+                            <div class="card-header" style="background: #2d2d3a; border-bottom: 1px solid #2d2d3a;">
+                                <h6 class="mb-0 text-white">Message Preview</h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="messagePreview" style="max-height: 200px; overflow-y: auto;">
+                                    <small class="text-muted">Messages will appear here...</small>
+                                </div>
+                                <div class="mt-2">
+                                    <small class="text-muted">Total messages: <span id="messageCount">0</span></small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">

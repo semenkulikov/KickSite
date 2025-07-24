@@ -211,7 +211,24 @@ function resetAllCheckboxes() {
   // Сбрасываем счетчик сообщений в минуту
   const averageSendingPerMinute = document.getElementById("averageSendingPerMinute");
   if (averageSendingPerMinute) {
-    averageSendingPerMinute.innerText = "0.00";
+    averageSendingPerMinute.innerText = "0";
+  }
+  
+  // Сбрасываем счетчик автосообщений
+  const autoMessagesCount = document.getElementById("autoMessagesCount");
+  if (autoMessagesCount) {
+    autoMessagesCount.innerText = "0";
+  }
+  
+  // Сбрасываем счетчики скорости
+  const chatSpeed = document.getElementById("chatSpeed");
+  if (chatSpeed) {
+    chatSpeed.innerText = "0.00";
+  }
+  
+  const autoSpeed = document.getElementById("autoSpeed");
+  if (autoSpeed) {
+    autoSpeed.innerText = "0.00";
   }
   
   // Сбрасываем таймер работы
@@ -229,5 +246,6 @@ function resetAllCheckboxes() {
 
 // Делаем функцию доступной глобально для onclick
 window.hideWorkNotification = hideWorkNotification;
+window.updateChatButtonsState = updateChatButtonsState;
 
 export {workTimer, workTimerId, updateWorkButtonsState, updateChatButtonsState, showWorkNotification, hideWorkNotification, resetAllCheckboxes};

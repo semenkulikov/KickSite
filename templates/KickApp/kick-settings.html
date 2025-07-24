@@ -4,6 +4,19 @@
     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editAutoMessageModal">Auto Messages</button>
   </div>
   <div class="col">
-    <h3 class="">Messages/minutes: <span id="averageSendingPerMinute"></span></h3>
+    <div class="row">
+      <div class="col-md-3">
+        <h6 class="text-white">Chat Speed: <span id="chatSpeed" class="text-info">0.00</span> msg/min</h6>
+      </div>
+      <div class="col-md-3">
+        <h6 class="text-white">Auto Speed: <span id="autoSpeed" class="text-warning">0.00</span> msg/min</h6>
+      </div>
+      <div class="col-md-3">
+        <h6 class="text-white">Frequency: <span id="averageSendingPerMinute" class="text-success">0</span> msg/min</h6>
+      </div>
+      <div class="col-md-3">
+        <h6 class="text-white">Messages Count: <span id="autoMessagesCount" class="text-primary">0</span></h6>
+      </div>
+    </div>
   </div>
 </div>

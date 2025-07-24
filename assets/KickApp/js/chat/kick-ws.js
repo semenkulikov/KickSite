@@ -4,6 +4,7 @@ import {showAlert} from "./alert";
 import {workTimer, workTimerId, updateWorkButtonsState, updateChatButtonsState, showWorkNotification, hideWorkNotification} from "./kick-work";
 import {countingSendingPerMinute, averageSendingPerMinuteId, handleMessageResponse} from "./kick-send"
 import {intervalSendAutoMessageId, intervalTimerSendAutoMessageId, startAutoMessageSending, stopAutoMessageSending} from "./kick-auto-messages"
+import {recordChatMessageResponse, recordAutoMessageResponse} from "./speed-manager"
 
 let _kickSocket = null;
 let _kickSocketInitialized = false;
@@ -121,8 +122,12 @@ const socket = new WebSocket(endpoint);
           autoMessageCheckbox.checked = false;
         }
         // Reset UI elements
-        document.getElementById("averageSendingPerMinute").innerText = "0.00"
+        document.getElementById("averageSendingPerMinute").innerText = "0"
+        document.getElementById("autoMessagesCount").innerText = "0"
         document.getElementById("timerAutoMessage").innerText = "00:01:00"
+        // Сбрасываем счетчики скорости
+        document.getElementById("chatSpeed").innerText = "0.00"
+        document.getElementById("autoSpeed").innerText = "0.00"
         // Remove auto-send highlighting from accounts
         let accounts = document.getElementsByClassName('account');
         for (let account of accounts) {
@@ -132,18 +137,43 @@ const socket = new WebSocket(endpoint);
         if (window.pendingMessages) {
           window.pendingMessages.clear();
         }
+        // Сбрасываем счетчики скорости в speed-manager
+        if (window.resetChatSpeed) {
+          window.resetChatSpeed();
+        }
+        if (window.resetAutoSpeed) {
+          window.resetAutoSpeed();
+        }
         // Update button states
         updateWorkButtonsState();
         break;
       case 'KICK_MESSAGE_SENT':
         handleMessageResponse(data, true);
+        // Обновляем скорость на основе ответа от Kick
+        if (data.message && data.message.auto) {
+          recordAutoMessageResponse();
+        } else {
+          recordChatMessageResponse();
+        }
         break;
         
       case 'KICK_SEND_MESSAGE':
         handleMessageResponse(data, true);
+        // Обновляем скорость на основе ответа от Kick
+        if (data.message && data.message.auto) {
+          recordAutoMessageResponse();
+        } else {
+          recordChatMessageResponse();
+        }
         break;
       case 'KICK_ERROR':
         handleMessageResponse(data, false);
+        // Обновляем скорость на основе ответа от Kick (ошибка тоже считается)
+        if (data.message && data.message.auto) {
+          recordAutoMessageResponse();
+        } else {
+          recordChatMessageResponse();
+        }
         break;
       case 'KICK_CRITICAL_ERROR':
         showAlert(message, "alert-danger")

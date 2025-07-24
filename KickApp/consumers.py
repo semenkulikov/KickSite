@@ -571,8 +571,11 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 proxy_url=proxy_url
             )
             
+            # Определяем тип сообщения (авто или ручное)
+            message_type = 'a' if message_data.get('auto', False) else 'm'
+            
             # Логируем попытку отправки сообщения
-            await self.log_message_to_shift(channel, account_login, 'm', message_text)
+            await self.log_message_to_shift(channel, account_login, message_type, message_text)
             
             if result is True:
                 success_msg = f'✅ Message sent successfully from {account_login} to {channel}: "{message_text}"'

@@ -53,6 +53,15 @@ class ShiftManager:
         if not self.current_shift or not self.current_shift.is_active:
             return False
         
+        # Если это изменение настроек с frequency, сохраняем её в смену
+        if action_type == 'settings_change' and details:
+            if details.get('action') in ['frequency_and_messages_change', 'frequency_change', 'auto_frequency_set', 'frequency_loaded']:
+                frequency = details.get('frequency', 0)
+                if frequency > 0:
+                    self.current_shift.set_frequency = frequency
+                    self.current_shift.save()
+                    print(f"Updated shift frequency to: {frequency}")
+        
         ShiftLog.objects.create(
             shift=self.current_shift,
             action_type=action_type,
@@ -72,6 +81,9 @@ class ShiftManager:
         if message_type == 'm':
             action_type = 'manual_send'
             action_desc = f'Ручная отправка сообщения от {account} в канал {channel}'
+        elif message_type == 'a':
+            action_type = 'auto_send'
+            action_desc = f'Автоотправка сообщения от {account} в канал {channel}'
         elif message_type == 'e':
             action_type = 'message_error'
             action_desc = f'Ошибка отправки от {account} в канал {channel}: {message}'
@@ -89,6 +101,8 @@ class ShiftManager:
         
         # Обновляем статистику смены
         self.current_shift.total_messages += 1
+        if message_type == 'a':
+            self.current_shift.auto_messages += 1
         self.current_shift.save()
         
         self.last_activity = timezone.now()
@@ -154,7 +168,10 @@ class ShiftManager:
             'end_time': shift.end_time.strftime('%d.%m.%Y %H:%M:%S') if shift.end_time else 'Active',
             'duration': shift.duration_str,
             'total_messages': shift.total_messages,
+            'auto_messages': shift.auto_messages,
             'average_speed': average_speed,
+            'auto_speed': shift.auto_speed,
+            'set_frequency': shift.set_frequency,  # Добавляем выставленную частоту
             'timeouts_count': shift.timeouts_count,
             'total_timeout_duration': shift.total_timeout_duration,
             'action_log': action_log
