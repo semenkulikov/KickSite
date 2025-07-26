@@ -1,10 +1,11 @@
 from django.contrib import admin
-from .models import KickAccount
+from .models import KickAccount, KickAccountAssignment
 from ProxyApp.models import Proxy
 from django import forms
 from django.urls import path
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.db import models
 import json
 
 class MultipleFileInput(forms.ClearableFileInput):
@@ -43,11 +44,31 @@ def normalize_proxy_url(proxy_str):
         return proxy_str  # fallback, возможно уже валидный
 
 class KickAccountAdmin(admin.ModelAdmin):
-    list_display = ('login', 'user', 'proxy', 'status', 'created', 'updated')
+    list_display = ('login', 'owner', 'proxy', 'status', 'created', 'updated', 'assigned_users_count')
     search_fields = ('login',)
     list_filter = ('status', 'proxy')
     change_list_template = "admin/KickApp/kickaccount/change_list.html"
     actions = ['mass_proxy_update_action']
+    
+    def assigned_users_count(self, obj):
+        """Количество назначенных пользователей"""
+        return obj.assigned_users.count()
+    assigned_users_count.short_description = 'Назначено пользователей'
+    
+    def get_queryset(self, request):
+        """Фильтруем аккаунты в зависимости от роли пользователя"""
+        qs = super().get_queryset(request)
+        
+        # Супер админ видит все
+        if request.user.is_superuser or request.user.is_super_admin:
+            return qs
+        
+        # Обычные админы видят все аккаунты
+        if request.user.is_admin:
+            return qs
+        
+        # Обычные пользователи не имеют доступа к админке (блокируется middleware)
+        return qs.none()
     
     def mass_proxy_update_action(self, request, queryset):
         # Перенаправляем на страницу массового обновления прокси
@@ -88,7 +109,7 @@ class KickAccountAdmin(admin.ModelAdmin):
                             proxy_obj, _ = Proxy.objects.get_or_create(url=proxy_url)
                         KickAccount.objects.update_or_create(
                             login=login,
-                            user=request.user,
+                            owner=request.user,
                             defaults={
                                 'token': token,
                                 'session_token': session_token,
@@ -202,5 +223,33 @@ class KickAccountAdmin(admin.ModelAdmin):
         
         return render(request, 'admin/kickaccount_mass_proxy_update.html', context)
 
+class KickAccountAssignmentAdmin(admin.ModelAdmin):
+    list_display = ('kick_account', 'user', 'assigned_by', 'assignment_type', 'assigned_at', 'is_active')
+    list_filter = ('assignment_type', 'is_active', 'assigned_at')
+    search_fields = ('kick_account__login', 'user__username', 'assigned_by__username')
+    ordering = ('-assigned_at',)
+    
+    def get_queryset(self, request):
+        """Фильтруем назначения в зависимости от роли пользователя"""
+        qs = super().get_queryset(request)
+        
+        # Супер админ видит все
+        if request.user.is_superuser or request.user.is_super_admin:
+            return qs
+        
+        # Обычные админы видят все назначения
+        if request.user.is_admin:
+            return qs
+        
+        # Обычные пользователи не имеют доступа к админке (блокируется middleware)
+        return qs.none()
+    
+    def save_model(self, request, obj, form, change):
+        """Автоматически устанавливаем assigned_by при создании"""
+        if not change:  # Только при создании
+            obj.assigned_by = request.user
+        super().save_model(request, obj, form, change)
+
 # Регистрируем только KickAccount в стандартной админке
 admin.site.register(KickAccount, KickAccountAdmin)
+admin.site.register(KickAccountAssignment, KickAccountAssignmentAdmin)

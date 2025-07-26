@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block title %}Отменить назначение{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Отменить назначение</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <h5>Внимание!</h5>
+                        <p>Вы собираетесь отменить назначение аккаунта <strong>{{ assignment.kick_account.login }}</strong> пользователю <strong>{{ assignment.user.username }}</strong>.</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>Информация о назначении:</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Аккаунт:</strong> {{ assignment.kick_account.login }}</li>
+                            <li><strong>Пользователь:</strong> {{ assignment.user.username }}</li>
+                            <li><strong>Назначил:</strong> {{ assignment.assigned_by.username }}</li>
+                            <li><strong>Тип:</strong> {{ assignment.get_assignment_type_display }}</li>
+                            <li><strong>Дата назначения:</strong> {{ assignment.assigned_at|date:"d.m.Y H:i" }}</li>
+                            {% if assignment.notes %}
+                                <li><strong>Заметки:</strong> {{ assignment.notes }}</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'kick_accounts_dashboard' %}" class="btn btn-secondary me-md-2">Отмена</a>
+                            <button type="submit" class="btn btn-danger">Отменить назначение</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

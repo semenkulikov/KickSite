@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+
+{% block title %}Назначить Kick аккаунт{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Назначить аккаунт {{ kick_account.login }}</h4>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="user_id" class="form-label">Пользователь *</label>
+                            <select class="form-select" id="user_id" name="user_id" required>
+                                <option value="">Выберите пользователя</option>
+                                {% for user in users %}
+                                    <option value="{{ user.id }}">{{ user.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="assignment_type" class="form-label">Тип назначения</label>
+                            <select class="form-select" id="assignment_type" name="assignment_type">
+                                <option value="admin_assigned">Назначен админом</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Заметки</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Дополнительная информация о назначении"></textarea>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'kick_accounts_dashboard' %}" class="btn btn-secondary me-md-2">Отмена</a>
+                            <button type="submit" class="btn btn-primary">Назначить аккаунт</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Информация об аккаунте -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Информация об аккаунте</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Логин:</strong> {{ kick_account.login }}</p>
+                            <p><strong>Владелец:</strong> {{ kick_account.owner.username|default:"Не указан" }}</p>
+                            <p><strong>Статус:</strong> 
+                                <span class="badge {% if kick_account.status == 'active' %}bg-success{% else %}bg-danger{% endif %}">
+                                    {{ kick_account.get_status_display }}
+                                </span>
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Дата создания:</strong> {{ kick_account.created|date:"d.m.Y H:i" }}</p>
+                            <p><strong>Назначено пользователей:</strong> {{ kick_account.assigned_users.count }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Поиск пользователей через AJAX
+document.addEventListener('DOMContentLoaded', function() {
+    const userSelect = document.getElementById('user_id');
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'form-control mb-2';
+    searchInput.placeholder = 'Поиск пользователей...';
+    
+    userSelect.parentNode.insertBefore(searchInput, userSelect);
+    
+    let searchTimeout;
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(function() {
+            const searchTerm = searchInput.value;
+            if (searchTerm.length >= 2) {
+                fetch('{% url "ajax_get_users" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: 'search=' + encodeURIComponent(searchTerm)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.users) {
+                        userSelect.innerHTML = '<option value="">Выберите пользователя</option>';
+                        data.users.forEach(user => {
+                            const option = document.createElement('option');
+                            option.value = user.id;
+                            option.textContent = user.username;
+                            userSelect.appendChild(option);
+                        });
+                    }
+                });
+            }
+        }, 300);
+    });
+});
+</script>
+{% endblock %} 

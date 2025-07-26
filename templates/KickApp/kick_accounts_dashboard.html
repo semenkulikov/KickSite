@@ -1,0 +1,172 @@
+{% extends 'base.html' %}
+
+{% block title %}Управление Kick аккаунтами{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h2>Управление Kick аккаунтами</h2>
+            
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+            
+            <!-- Статистика -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Всего аккаунтов</h5>
+                            <p class="card-text display-6">{{ kick_accounts.count }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Активных назначений</h5>
+                            <p class="card-text display-6">{{ active_assignments|length }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Мои аккаунты</h5>
+                            <p class="card-text display-6">{{ my_accounts|length }}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Мои назначения</h5>
+                            <p class="card-text display-6">{{ my_assignments|length }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Действия -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="btn-group" role="group">
+                        {% if user.is_admin %}
+                            <a href="{% url 'kick_accounts_dashboard' %}" class="btn btn-primary">Все аккаунты</a>
+                            <a href="{% url 'kick_accounts_dashboard' %}?filter=my_assignments" class="btn btn-outline-primary">Мои назначения</a>
+                            <a href="{% url 'add_own_kick_account' %}" class="btn btn-success">Добавить аккаунт</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Таблица аккаунтов -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Kick аккаунты</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Логин</th>
+                                    <th>Владелец</th>
+                                    <th>Статус</th>
+                                    <th>Назначено пользователей</th>
+                                    <th>Дата создания</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for account in kick_accounts %}
+                                <tr>
+                                    <td>{{ account.login }}</td>
+                                    <td>{{ account.owner.username|default:"Не указан" }}</td>
+                                    <td>
+                                        <span class="badge {% if account.status == 'active' %}bg-success{% else %}bg-danger{% endif %}">
+                                            {{ account.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ account.assigned_users.count }}</td>
+                                    <td>{{ account.created|date:"d.m.Y H:i" }}</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            {% if user.is_admin %}
+                                                <a href="{% url 'assign_kick_account' account.id %}" class="btn btn-outline-primary">Назначить</a>
+                                            {% endif %}
+                                            {% if account.owner == user and user.is_superuser %}
+                                                <a href="/admin/KickApp/kickaccount/{{ account.id }}/change/" class="btn btn-outline-warning">Редактировать</a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center">Нет доступных аккаунтов</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Таблица назначений -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Назначения аккаунтов</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Аккаунт</th>
+                                    <th>Пользователь</th>
+                                    <th>Назначил</th>
+                                    <th>Тип</th>
+                                    <th>Дата назначения</th>
+                                    <th>Статус</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for assignment in assignments %}
+                                <tr>
+                                    <td>{{ assignment.kick_account.login }}</td>
+                                    <td>{{ assignment.user.username }}</td>
+                                    <td>{{ assignment.assigned_by.username }}</td>
+                                    <td>{{ assignment.get_assignment_type_display }}</td>
+                                    <td>{{ assignment.assigned_at|date:"d.m.Y H:i" }}</td>
+                                    <td>
+                                        <span class="badge {% if assignment.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                            {% if assignment.is_active %}Активно{% else %}Неактивно{% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if assignment.is_active and user.is_admin or assignment.can_user_edit %}
+                                            <a href="{% url 'unassign_kick_account' assignment.id %}" class="btn btn-outline-danger btn-sm">Отменить</a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center">Нет назначений</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

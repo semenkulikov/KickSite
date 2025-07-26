@@ -5,6 +5,7 @@ import time
 import logging
 from django.urls import reverse
 from django.contrib import messages
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -49,17 +50,52 @@ class TransactionMiddleware:
         return HttpResponse("Service temporarily unavailable", status=503)
 
 class AdminAccessMiddleware:
+    """
+    Middleware для контроля доступа к админке Django
+    """
+    
     def __init__(self, get_response):
         self.get_response = get_response
-
+    
     def __call__(self, request):
-        # Проверяем доступ к админке
-        if request.path.startswith('/admin/') and request.path != '/admin/login/':
-            if not request.user.is_authenticated:
-                return redirect('login')
-            if not request.user.is_staff:
-                # Тихо редиректим без сообщений об ошибках
-                return redirect('index')
+        try:
+            # Проверяем, является ли запрос к админке
+            if request.path.startswith('/admin/'):
+                # Если пользователь не аутентифицирован, пропускаем (Django сам перенаправит на логин)
+                if not request.user.is_authenticated:
+                    return self.get_response(request)
+                
+                # Проверяем права доступа
+                if not self.has_admin_access(request.user):
+                    messages.error(request, 'У вас нет прав для доступа к админке.')
+                    return redirect('index')  # Перенаправляем на главную страницу
+            
+            return self.get_response(request)
+        except Exception as e:
+            print(f"[AdminAccessMiddleware] Error: {e}")
+            # В случае ошибки пропускаем запрос
+            return self.get_response(request)
+    
+    def has_admin_access(self, user):
+        """
+        Проверяет, есть ли у пользователя права на доступ к админке
+        """
+        # Суперпользователь Django всегда имеет доступ
+        if user.is_superuser:
+            return True
         
-        response = self.get_response(request)
-        return response
+        # Проверяем роль пользователя - только админы и супер админы
+        if hasattr(user, 'role') and user.role:
+            if user.role.name in ['super_admin', 'admin']:
+                return True
+        
+        # Также проверяем is_admin свойство (для обратной совместимости)
+        if hasattr(user, 'is_admin') and user.is_admin:
+            return True
+        
+        # Проверяем is_staff (если пользователь назначен как staff)
+        if user.is_staff:
+            return True
+        
+        # Обычные пользователи не имеют доступа к админке
+        return False

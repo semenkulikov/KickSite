@@ -372,9 +372,8 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                     {'channel': channel_name}
                 )
             
-            # Сбрасываем статус всех аккаунтов для нового сеанса
-            # Аккаунты помечаются как активные только для текущего сеанса
-            accounts = await sync_to_async(list)(KickAccount.objects.all())
+            # Получаем аккаунты с учетом роли пользователя
+            accounts = await self.get_active_accounts()
             for acc in accounts:
                 # Для нового сеанса все аккаунты активны (кроме тех что помечены как неактивные в БД)
                 account_status = {
@@ -387,7 +386,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                     'message': account_status
                 }))
             
-            print(f"[KICK-WS] Channel changed to {channel_name}, all accounts reset for new session")
+            print(f"[KICK-WS] Channel changed to {channel_name}, accounts filtered by user role")
 
         elif _type == 'KICK_START_WORK':
             if self.work_task and not self.work_task.done():
@@ -827,9 +826,31 @@ class KickAppChatWs(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_active_accounts(self):
-        """Get active accounts from database"""
+        """Get active accounts from database based on user role"""
         try:
-            return list(KickAccount.objects.filter(status='active'))
+            print(f"[get_active_accounts] User: {self.user.username}")
+            print(f"[get_active_accounts] Is superuser: {self.user.is_superuser}")
+            print(f"[get_active_accounts] Role: {self.user.role.name if hasattr(self.user, 'role') and self.user.role else 'None'}")
+            print(f"[get_active_accounts] Is admin: {self.user.is_admin}")
+            
+            if self.user.is_superuser:
+                # Супер админ видит все аккаунты
+                accounts = list(KickAccount.objects.filter(status='active'))
+                print(f"[get_active_accounts] Superuser sees {len(accounts)} accounts")
+                return accounts
+            elif self.user.is_admin:
+                # Обычный админ видит все аккаунты
+                accounts = list(KickAccount.objects.filter(status='active'))
+                print(f"[get_active_accounts] Admin sees {len(accounts)} accounts")
+                return accounts
+            else:
+                # Обычный пользователь видит только назначенные ему аккаунты
+                accounts = list(KickAccount.objects.filter(
+                    status='active',
+                    assigned_users=self.user
+                ))
+                print(f"[get_active_accounts] Regular user sees {len(accounts)} assigned accounts")
+                return accounts
         except Exception as e:
             print(f"[get_active_accounts] Error: {e}")
             return []

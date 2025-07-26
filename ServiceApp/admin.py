@@ -1,28 +1,75 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .forms import CustomUserCreationForm, CustomUserChangeForm
-from .models import User
+from .models import User, UserRole
 
+class UserRoleAdmin(admin.ModelAdmin):
+    list_display = ('name', 'description')
+    search_fields = ('name', 'description')
+    ordering = ('name',)
 
-class UserAdmin(UserAdmin):
-    add_form = CustomUserCreationForm
-    form = CustomUserChangeForm
-    model = User
-    search_fields = ('username',)
-    list_display = ('username',)
-    list_filter = ('is_active',)
+class CustomUserAdmin(UserAdmin):
+    list_display = ('username', 'email', 'is_active', 'date_joined')
+    list_filter = ('is_active', 'is_staff', 'date_joined')
+    search_fields = ('username', 'email', 'first_name', 'last_name')
     ordering = ('username',)
-
-    fieldsets = (
-        (None, {'fields': ('username', 'password')}),
-        ('Permissions', {'fields': ('is_staff',)}),
-        ('Groups', {'fields': ('groups',)}),
-        ('Primary personal information', {
-            'fields': ('first_name', 'last_name')}),
-        ('Status', {'fields': ('is_active',)}),
+    
+    def get_queryset(self, request):
+        """Ограничиваем доступ для обычных админов"""
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        elif hasattr(request.user, 'role') and request.user.role and request.user.role.name == 'ADMIN':
+            # Обычные админы видят только обычных пользователей (не админов)
+            return qs.filter(role__name='USER')
+        return qs.none()
+    
+    def has_add_permission(self, request):
+        """Обычные админы не могут добавлять пользователей"""
+        if request.user.is_superuser:
+            return True
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        """Обычные админы могут изменять только обычных пользователей"""
+        if request.user.is_superuser:
+            return True
+        elif hasattr(request.user, 'role') and request.user.role and request.user.role.name == 'ADMIN':
+            if obj and hasattr(obj, 'role') and obj.role and obj.role.name == 'USER':
+                return True
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        """Обычные админы не могут удалять пользователей"""
+        if request.user.is_superuser:
+            return True
+        return False
+    
+    fieldsets = UserAdmin.fieldsets + (
+        ('Дополнительная информация', {
+            'fields': ('role', 'phone', 'telegram')
+        }),
     )
+    
+    add_fieldsets = UserAdmin.add_fieldsets + (
+        ('Дополнительная информация', {
+            'fields': ('role', 'phone', 'telegram')
+        }),
+    )
+    
+    def get_queryset(self, request):
+        """Фильтруем пользователей в зависимости от роли текущего пользователя"""
+        qs = super().get_queryset(request)
+        
+        # Супер админ видит всех
+        if request.user.is_superuser or request.user.is_super_admin:
+            return qs
+        
+        # Обычный админ видит всех пользователей, кроме супер админов
+        if request.user.is_admin:
+            return qs.exclude(role__name='super_admin')
+        
+        # Обычный пользователь видит только себя
+        return qs.filter(id=request.user.id)
 
-    filter_horizontal = ('groups',)
-
-
-admin.site.register(User, UserAdmin)
+admin.site.register(UserRole, UserRoleAdmin)
+admin.site.register(User, CustomUserAdmin)
