@@ -14,38 +14,36 @@ let autoMessageFrequency = 0;
 let autoMessageIndex = 0;
 let selectedAccounts = [];
 let autoMessages = [];
-let batchSize = 200; // Максимальный размер батча для 4000+ сообщений в минуту
-let batchDelay = 5; // Минимальная задержка между батчами
+let batchSize = 500; // Увеличиваем размер батча для максимальной скорости
+let batchDelay = 1; // Минимальная задержка между батчами
+let messageWorker = null; // Web Worker для обработки сообщений
 
-// Оптимизированная функция для массовой отправки сообщений
-async function sendBatchMessages(batch) {
+// Оптимизированная функция для массовой отправки сообщений - FIRE AND FORGET
+function sendBatchMessages(batch) {
     const ws = getKickSocket();
     if (!ws || ws.readyState !== WebSocket.OPEN) {
         console.warn('[OPTIMIZED_AUTO] WebSocket not available for batch sending');
         return;
     }
     
-    // Отправляем все сообщения асинхронно для максимальной скорости
-    const promises = batch.map(messageData => {
-        return new Promise((resolve) => {
-            try {
-                ws.send(JSON.stringify({
-                    "type": "KICK_SEND_MESSAGE",
-                    "message": messageData,
-                }));
-                resolve();
-            } catch (error) {
-                console.error('[OPTIMIZED_AUTO] Error sending message:', error);
-                resolve();
-            }
-        });
-    });
+    // Отправляем все сообщения без ожидания - максимальная скорость
+    // Используем более эффективный формат для больших батчей
+    const messages = batch.map(messageData => ({
+        "type": "KICK_SEND_MESSAGE",
+        "message": messageData,
+    }));
     
-    // Ждем завершения всех отправок
-    await Promise.all(promises);
+    // Отправляем все сообщения одним батчем
+    messages.forEach(msg => {
+        try {
+            ws.send(JSON.stringify(msg));
+        } catch (error) {
+            console.error('[OPTIMIZED_AUTO] Error sending message:', error);
+        }
+    });
 }
 
-// Оптимизированная функция авторассылки
+// Оптимизированная функция авторассылки с Web Worker
 async function optimizedAutoMessageSending() {
     if (!isAutoSendingActive || !workStatus || !window.workStatus) {
         console.log('[OPTIMIZED_AUTO] Stopping due to work status:', { isAutoSendingActive, workStatus, windowWorkStatus: window.workStatus });
@@ -59,37 +57,46 @@ async function optimizedAutoMessageSending() {
     }
     
     try {
-        // Создаем батч сообщений для отправки
-        const batch = [];
-        const currentTime = Date.now();
-        
-        for (let i = 0; i < batchSize; i++) {
-            const accountIndex = (autoMessageIndex + i) % selectedAccounts.length;
-            const messageIndex = Math.floor((autoMessageIndex + i) / selectedAccounts.length) % autoMessages.length;
+        // Используем Web Worker для создания батча в фоне
+        if (messageWorker) {
+            messageWorker.postMessage({
+                type: 'PROCESS_BATCH',
+                data: {
+                    accounts: selectedAccounts,
+                    messages: autoMessages,
+                    batchSize: batchSize,
+                    startIndex: autoMessageIndex
+                }
+            });
+        } else {
+            // Fallback без Web Worker
+            const batch = [];
+            const currentTime = Date.now();
+            const channel = document.getElementById("selectedChannel")?.innerText || "default";
             
-            const account = selectedAccounts[accountIndex];
-            const message = autoMessages[messageIndex];
-            
-            const messageData = {
-                "channel": document.getElementById("selectedChannel")?.innerText || "default",
-                "account": account,
-                "message": message,
-                "auto": true,
-                "messageId": currentTime + i,
-                "index": i
+            const baseMessageData = {
+                "channel": channel,
+                "auto": true
             };
             
-            batch.push(messageData);
-            autoMessagesSent++;
-            recordAutoMessageSent();
-            addMessageToLogs(messageData);
+            for (let i = 0; i < batchSize; i++) {
+                const accountIndex = (autoMessageIndex + i) % selectedAccounts.length;
+                const messageIndex = Math.floor((autoMessageIndex + i) / selectedAccounts.length) % autoMessages.length;
+                
+                const messageData = {
+                    ...baseMessageData,
+                    "account": selectedAccounts[accountIndex],
+                    "message": autoMessages[messageIndex],
+                    "messageId": currentTime + i
+                };
+                
+                batch.push(messageData);
+            }
+            
+            sendBatchMessages(batch);
+            autoMessagesSent += batchSize;
+            autoMessageIndex = (autoMessageIndex + batchSize) % (selectedAccounts.length * autoMessages.length);
         }
-        
-        // Отправляем батч
-        await sendBatchMessages(batch);
-        
-        // Обновляем индекс
-        autoMessageIndex = (autoMessageIndex + batchSize) % (selectedAccounts.length * autoMessages.length);
         
         console.log(`[OPTIMIZED_AUTO] Sent batch of ${batchSize} messages. Total sent: ${autoMessagesSent}`);
         
@@ -103,6 +110,41 @@ function startOptimizedAutoMessageSending() {
     if (isAutoSendingActive) {
         console.log('[OPTIMIZED_AUTO] Auto sending already active');
         return;
+    }
+    
+    // Инициализируем Web Worker если поддерживается
+    if (!messageWorker && typeof Worker !== 'undefined') {
+        try {
+            messageWorker = new Worker('/static/assets/KickApp/js/chat/message-worker.js');
+            // Fallback если не найден
+            if (!messageWorker) {
+                console.warn('[OPTIMIZED_AUTO] Web Worker not available, using fallback');
+                return;
+            }
+            messageWorker.onmessage = function(e) {
+                const { type, batch, nextIndex } = e.data;
+                if (type === 'BATCH_READY') {
+                    const channel = document.getElementById("selectedChannel")?.innerText || "default";
+                    const baseMessageData = {
+                        "channel": channel,
+                        "auto": true
+                    };
+                    
+                    // Добавляем недостающие поля к сообщениям из Worker
+                    const fullBatch = batch.map(msg => ({
+                        ...baseMessageData,
+                        ...msg
+                    }));
+                    
+                    sendBatchMessages(fullBatch);
+                    autoMessagesSent += batchSize;
+                    autoMessageIndex = nextIndex;
+                }
+            };
+            console.log('[OPTIMIZED_AUTO] Web Worker initialized');
+        } catch (error) {
+            console.warn('[OPTIMIZED_AUTO] Web Worker not available, using fallback:', error);
+        }
     }
     
     // Получаем выбранные аккаунты
@@ -137,10 +179,10 @@ function startOptimizedAutoMessageSending() {
     
 
     
-    // Рассчитываем интервал для батчей с оптимизацией для 4000+ сообщений в минуту
+    // Рассчитываем интервал для батчей с максимальной оптимизацией
     const messagesPerMinute = autoMessageFrequency;
     const messagesPerSecond = messagesPerMinute / 60;
-    const batchInterval = Math.max(100, (batchSize / messagesPerSecond) * 1000); // минимум 100мс для стабильности
+    const batchInterval = Math.max(50, (batchSize / messagesPerSecond) * 1000); // минимум 50мс для максимальной скорости
     
     console.log(`[OPTIMIZED_AUTO] Starting with ${selectedAccounts.length} accounts, ${autoMessages.length} messages, ${autoMessageFrequency} msg/min`);
     console.log(`[OPTIMIZED_AUTO] Batch interval: ${batchInterval}ms`);
@@ -204,6 +246,13 @@ function stopOptimizedAutoMessageSending() {
     autoMessagesSent = 0;
     autoMessageIndex = 0;
     
+    // Очищаем Web Worker
+    if (messageWorker) {
+        messageWorker.terminate();
+        messageWorker = null;
+        console.log('[OPTIMIZED_AUTO] Web Worker terminated');
+    }
+    
     // Обновляем UI
     const checkbox = document.getElementById('sendAutoMessageStatus');
     if (checkbox) {
@@ -222,7 +271,7 @@ function stopOptimizedAutoMessageSending() {
 }
 
 // Функция для настройки параметров оптимизации
-function setOptimizationParams(newBatchSize = 200, newBatchDelay = 5) {
+function setOptimizationParams(newBatchSize = 500, newBatchDelay = 1) {
     batchSize = newBatchSize;
     batchDelay = newBatchDelay;
     console.log(`[OPTIMIZED_AUTO] Optimization params updated: batchSize=${batchSize}, batchDelay=${batchDelay}ms`);

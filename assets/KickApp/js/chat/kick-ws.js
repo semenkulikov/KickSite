@@ -19,6 +19,9 @@ const loc = window.location;
 let endpoint = wsStart + loc.host + '/ws-kick/chat';
 const socket = new WebSocket(endpoint);
 
+// Оптимизируем WebSocket для высокой производительности
+socket.binaryType = 'arraybuffer'; // Используем ArrayBuffer для лучшей производительности
+
   // === DEBUG LOGGING ===
   console.log('[KICK-WS] init kick-ws.js');
   console.log('[KICK-WS] KICK_WS_URL =', endpoint);
@@ -258,39 +261,39 @@ const socket = new WebSocket(endpoint);
         console.log('[KICK_END_WORK] Work ended successfully');
         break;
       case 'KICK_MESSAGE_SENT':
-        // Показываем алерт об успешной отправке
-        const successMessage = data.message || "Message sent successfully";
-        const successAccount = data.account || "unknown";
-        showAlert(`✅ Message sent from ${successAccount}: ${successMessage}`, "alert-success", true, 2000);
-        // Обновляем скорость на основе ответа от Kick
+        // Обновляем скорость на основе ответа от Kick (без алертов для автосообщений)
         if (data.auto) {
           recordAutoMessageResponse();
         } else {
+          // Показываем алерт только для ручных сообщений
+          const successMessage = data.message || "Message sent successfully";
+          const successAccount = data.account || "unknown";
+          showAlert(`✅ Message sent from ${successAccount}: ${successMessage}`, "alert-success", true, 2000);
           recordChatMessageResponse();
         }
         break;
         
       case 'KICK_SEND_MESSAGE':
-        // Показываем алерт об успешной отправке
-        const sendMessage = data.message || "Message sent successfully";
-        const sendAccount = data.account || "unknown";
-        showAlert(`✅ Message sent from ${sendAccount}: ${sendMessage}`, "alert-success", true, 2000);
-        // Обновляем скорость на основе ответа от Kick
+        // Обновляем скорость на основе ответа от Kick (без алертов для автосообщений)
         if (data.auto) {
           recordAutoMessageResponse();
         } else {
+          // Показываем алерт только для ручных сообщений
+          const sendMessage = data.message || "Message sent successfully";
+          const sendAccount = data.account || "unknown";
+          showAlert(`✅ Message sent from ${sendAccount}: ${sendMessage}`, "alert-success", true, 2000);
           recordChatMessageResponse();
         }
         break;
       case 'KICK_ERROR':
-        // Показываем алерт об ошибке
-        const errorMessage = data.message || "Unknown error";
-        const account = data.account || "unknown";
-        showAlert(`❌ Failed to send from ${account}: ${errorMessage}`, "alert-danger", true, 4000);
         // Обновляем скорость на основе ответа от Kick (ошибка тоже считается)
         if (data.auto) {
           recordAutoMessageResponse();
         } else {
+          // Показываем алерт только для ручных сообщений
+          const errorMessage = data.message || "Unknown error";
+          const account = data.account || "unknown";
+          showAlert(`❌ Failed to send from ${account}: ${errorMessage}`, "alert-danger", true, 4000);
           recordChatMessageResponse();
         }
         break;

@@ -42,8 +42,13 @@ function updateChatSpeed() {
   if (chatSpeedElement && chatResponseStartTime && chatMessagesResponded > 0) {
     const elapsedMinutes = (Date.now() - chatResponseStartTime) / 60000;
     const currentChatSpeed = chatMessagesResponded / elapsedMinutes;
-    chatSpeedElement.innerText = currentChatSpeed.toFixed(2);
-  } else if (chatSpeedElement) {
+    // Обновляем только если значение изменилось значительно
+    const currentText = chatSpeedElement.innerText;
+    const newText = currentChatSpeed.toFixed(2);
+    if (currentText !== newText) {
+      chatSpeedElement.innerText = newText;
+    }
+  } else if (chatSpeedElement && chatSpeedElement.innerText !== "0.00") {
     chatSpeedElement.innerText = "0.00";
   }
 }
@@ -53,8 +58,13 @@ function updateAutoSpeed() {
   if (autoSpeedElement && autoResponseStartTime && autoMessagesResponded > 0) {
     const elapsedMinutes = (Date.now() - autoResponseStartTime) / 60000;
     const currentAutoSpeed = autoMessagesResponded / elapsedMinutes;
-    autoSpeedElement.innerText = currentAutoSpeed.toFixed(2);
-  } else if (autoSpeedElement) {
+    // Обновляем только если значение изменилось значительно
+    const currentText = autoSpeedElement.innerText;
+    const newText = currentAutoSpeed.toFixed(2);
+    if (currentText !== newText) {
+      autoSpeedElement.innerText = newText;
+    }
+  } else if (autoSpeedElement && autoSpeedElement.innerText !== "0.00") {
     autoSpeedElement.innerText = "0.00";
   }
 }
@@ -67,7 +77,7 @@ function startSpeedUpdateInterval() {
   updateInterval = setInterval(() => {
     updateChatSpeed();
     updateAutoSpeed();
-  }, 1000); // Обновляем каждую секунду
+  }, 2000); // Обновляем каждые 2 секунды для снижения нагрузки
 }
 
 // Остановка интервала обновления статистики

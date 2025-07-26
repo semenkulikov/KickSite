@@ -225,25 +225,31 @@ class AccountManager {
   
   // Обработка чекбоксов батчами для избежания зависания UI
   processCheckboxesInBatches(checkboxes, checked, totalCount) {
-    const batchSize = 500; // Максимальный размер батча для быстрой обработки
+    const batchSize = 1000; // Увеличиваем размер батча для максимальной скорости
     let processed = 0;
     
     const processBatch = () => {
       const batch = checkboxes.slice(processed, processed + batchSize);
       
-      batch.forEach(checkbox => {
+      // Используем более эффективную обработку
+      const operations = batch.map(checkbox => () => {
         checkbox.checked = checked;
         checkbox.setAttribute('data-account-selected', checked ? 'true' : 'false');
         checkbox.parentNode.classList.toggle('account-checked', checked);
       });
       
+      // Выполняем все операции сразу
+      operations.forEach(op => op());
+      
       processed += batch.length;
       
-      // Обновляем прогресс
-      if (checked) {
-        this.updateCurrentAccountInfo(`Processing: ${processed}/${totalCount} accounts...`);
-      } else {
-        this.updateCurrentAccountInfo(`Deselecting: ${processed}/${totalCount} accounts...`);
+      // Обновляем прогресс реже для снижения нагрузки
+      if (processed % 2000 === 0 || processed >= totalCount) {
+        if (checked) {
+          this.updateCurrentAccountInfo(`Processing: ${processed}/${totalCount} accounts...`);
+        } else {
+          this.updateCurrentAccountInfo(`Deselecting: ${processed}/${totalCount} accounts...`);
+        }
       }
       
       if (processed < totalCount) {
