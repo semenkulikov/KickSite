@@ -91,6 +91,8 @@ function resetAutoSpeed() {
   updateAutoSpeed();
 }
 
+
+
 // Экспорт функций
 export {
   recordChatMessageSent,
@@ -102,11 +104,13 @@ export {
   updateChatSpeed,
   updateAutoSpeed,
   startSpeedUpdateInterval,
-  stopSpeedUpdateInterval
+  stopSpeedUpdateInterval,
+
 };
 
 // Делаем функции доступными глобально
 window.resetChatSpeed = resetChatSpeed;
 window.resetAutoSpeed = resetAutoSpeed;
 window.startSpeedUpdateInterval = startSpeedUpdateInterval;
-window.stopSpeedUpdateInterval = stopSpeedUpdateInterval; 
+window.stopSpeedUpdateInterval = stopSpeedUpdateInterval;
+ 

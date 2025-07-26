@@ -219,66 +219,90 @@ class AccountManager {
   selectAllAccounts() {
     const activeCheckboxes = document.querySelectorAll('.account__checkbox:not(:disabled)');
     
-    activeCheckboxes.forEach(checkbox => {
-      checkbox.checked = true;
-      checkbox.setAttribute('data-account-selected', 'true');
-      checkbox.parentNode.classList.add('account-checked');
-    });
+    // Обрабатываем все аккаунты батчами для избежания зависания UI
+    this.processCheckboxesInBatches(Array.from(activeCheckboxes), true, activeCheckboxes.length);
+  }
+  
+  // Обработка чекбоксов батчами для избежания зависания UI
+  processCheckboxesInBatches(checkboxes, checked, totalCount) {
+    const batchSize = 500; // Максимальный размер батча для быстрой обработки
+    let processed = 0;
     
-    this.updateCurrentAccountInfo(`${activeCheckboxes.length} accounts selected`);
-    
-    if (window.updateChatButtonsState) {
-      window.updateChatButtonsState();
-    }
-    
-    console.log(`[AccountManager] Selected ${activeCheckboxes.length} accounts`);
-    
-    // Логируем действие в WebSocket
-    const ws = getKickSocket();
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'KICK_LOG_ACTION',
-        action_type: 'checkbox_toggle',
-        description: `Выбраны все аккаунты (${activeCheckboxes.length} шт.)`,
-        details: {
-          action: 'select_all',
-          count: activeCheckboxes.length
+    const processBatch = () => {
+      const batch = checkboxes.slice(processed, processed + batchSize);
+      
+      batch.forEach(checkbox => {
+        checkbox.checked = checked;
+        checkbox.setAttribute('data-account-selected', checked ? 'true' : 'false');
+        checkbox.parentNode.classList.toggle('account-checked', checked);
+      });
+      
+      processed += batch.length;
+      
+      // Обновляем прогресс
+      if (checked) {
+        this.updateCurrentAccountInfo(`Processing: ${processed}/${totalCount} accounts...`);
+      } else {
+        this.updateCurrentAccountInfo(`Deselecting: ${processed}/${totalCount} accounts...`);
+      }
+      
+      if (processed < totalCount) {
+        // Планируем следующий батч без задержки для максимальной скорости
+        requestAnimationFrame(processBatch);
+      } else {
+        // Завершили обработку
+        if (checked) {
+          this.updateCurrentAccountInfo(`${totalCount} accounts selected`);
+          console.log(`[AccountManager] Selected ${totalCount} accounts`);
+          
+          // Логируем действие в WebSocket
+          const ws = getKickSocket();
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'KICK_LOG_ACTION',
+              action_type: 'checkbox_toggle',
+              description: `Выбраны аккаунты (${totalCount} шт.)`,
+              details: {
+                action: 'select_all',
+                count: totalCount
+              }
+            }));
+          }
+        } else {
+          this.updateCurrentAccountInfo('None selected');
+          console.log('[AccountManager] Deselected all accounts');
+          
+          // Логируем действие в WebSocket
+          const ws = getKickSocket();
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'KICK_LOG_ACTION',
+              action_type: 'checkbox_toggle',
+              description: 'Снято выделение со всех аккаунтов',
+              details: {
+                action: 'deselect_all',
+                count: totalCount
+              }
+            }));
+          }
         }
-      }));
-    }
+        
+        if (window.updateChatButtonsState) {
+          window.updateChatButtonsState();
+        }
+      }
+    };
+    
+    // Запускаем обработку
+    processBatch();
   }
   
   // Снятие выделения со всех аккаунтов
   deselectAllAccounts() {
     const allCheckboxes = document.querySelectorAll('.account__checkbox');
     
-    allCheckboxes.forEach(checkbox => {
-      checkbox.checked = false;
-      checkbox.setAttribute('data-account-selected', 'false');
-      checkbox.parentNode.classList.remove('account-checked');
-    });
-    
-    this.updateCurrentAccountInfo('None selected');
-    
-    if (window.updateChatButtonsState) {
-      window.updateChatButtonsState();
-    }
-    
-    console.log('[AccountManager] Deselected all accounts');
-    
-    // Логируем действие в WebSocket
-    const ws = getKickSocket();
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'KICK_LOG_ACTION',
-        action_type: 'checkbox_toggle',
-        description: 'Снято выделение со всех аккаунтов',
-        details: {
-          action: 'deselect_all',
-          count: allCheckboxes.length
-        }
-      }));
-    }
+    // Обрабатываем батчами для избежания зависания UI
+    this.processCheckboxesInBatches(Array.from(allCheckboxes), false, allCheckboxes.length);
   }
   
   // Обновление информации о текущем аккаунте

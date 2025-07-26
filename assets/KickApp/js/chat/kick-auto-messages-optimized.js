@@ -14,27 +14,28 @@ let autoMessageFrequency = 0;
 let autoMessageIndex = 0;
 let selectedAccounts = [];
 let autoMessages = [];
-let batchSize = 50; // Количество сообщений для одновременной отправки
-let batchDelay = 50; // Задержка между батчами в мс
+let batchSize = 200; // Максимальный размер батча для 4000+ сообщений в минуту
+let batchDelay = 5; // Минимальная задержка между батчами
 
 // Оптимизированная функция для массовой отправки сообщений
 async function sendBatchMessages(batch) {
-    const promises = batch.map(messageData => {
-        return new Promise((resolve) => {
-            const ws = getKickSocket();
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    "type": "KICK_SEND_MESSAGE",
-                    "message": messageData,
-                }));
-                resolve();
-            } else {
-                resolve();
-            }
-        });
-    });
+    const ws = getKickSocket();
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.warn('[OPTIMIZED_AUTO] WebSocket not available for batch sending');
+        return;
+    }
     
-    await Promise.all(promises);
+    // Отправляем все сообщения синхронно для максимальной скорости
+    for (let i = 0; i < batch.length; i++) {
+        try {
+            ws.send(JSON.stringify({
+                "type": "KICK_SEND_MESSAGE",
+                "message": batch[i],
+            }));
+        } catch (error) {
+            console.error('[OPTIMIZED_AUTO] Error sending message:', error);
+        }
+    }
 }
 
 // Оптимизированная функция авторассылки
@@ -109,6 +110,8 @@ function startOptimizedAutoMessageSending() {
             .filter(line => line !== "");
     }
     
+
+    
     if (selectedAccounts.length === 0) {
         showAlert("No accounts selected for auto sending", "alert-warning", true, 3000);
         return;
@@ -125,10 +128,12 @@ function startOptimizedAutoMessageSending() {
         autoMessageFrequency = parseInt(freqElement.value) || 1;
     }
     
-    // Рассчитываем интервал для батчей
+
+    
+    // Рассчитываем интервал для батчей с оптимизацией для 4000+ сообщений в минуту
     const messagesPerMinute = autoMessageFrequency;
     const messagesPerSecond = messagesPerMinute / 60;
-    const batchInterval = (batchSize / messagesPerSecond) * 1000; // в миллисекундах
+    const batchInterval = Math.max(100, (batchSize / messagesPerSecond) * 1000); // минимум 100мс для стабильности
     
     console.log(`[OPTIMIZED_AUTO] Starting with ${selectedAccounts.length} accounts, ${autoMessages.length} messages, ${autoMessageFrequency} msg/min`);
     console.log(`[OPTIMIZED_AUTO] Batch interval: ${batchInterval}ms`);
@@ -210,7 +215,7 @@ function stopOptimizedAutoMessageSending() {
 }
 
 // Функция для настройки параметров оптимизации
-function setOptimizationParams(newBatchSize = 50, newBatchDelay = 50) {
+function setOptimizationParams(newBatchSize = 200, newBatchDelay = 5) {
     batchSize = newBatchSize;
     batchDelay = newBatchDelay;
     console.log(`[OPTIMIZED_AUTO] Optimization params updated: batchSize=${batchSize}, batchDelay=${batchDelay}ms`);
