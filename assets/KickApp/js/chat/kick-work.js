@@ -1,5 +1,6 @@
 import {awaitAccountsPingStatus, getKickSocket, workStatus} from "./kick-ws";
 import {showAlert, clearAllAlerts} from "./alert";
+import {startSpeedUpdateInterval, stopSpeedUpdateInterval} from "./speed-manager";
 
 let workTimerId;
 
@@ -19,6 +20,9 @@ if (startWorkBtn) {
     
     // Показываем уведомление о работе сразу
     showWorkNotification();
+    
+    // Запускаем интервал обновления статистики
+    startSpeedUpdateInterval();
     
     // Логируем текущую частоту при старте работы
     const freqSend = document.getElementById("frequency-send");
@@ -56,6 +60,9 @@ if (endWorkBtn) {
     setTimeout(() => {
       showAlert("✅ Work completed successfully", "alert-success", true, 5000);
     }, 100);
+    
+    // Останавливаем интервал обновления статистики
+    stopSpeedUpdateInterval();
     
     // Останавливаем автоматическую рассылку
     const autoMessageCheckbox = document.getElementById('sendAutoMessageStatus');

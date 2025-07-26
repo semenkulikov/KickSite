@@ -613,9 +613,26 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             if not session_token:
                 error_msg = f'No session_token for account {account_login}'
                 print(f"[SEND_MESSAGE] ERROR: {error_msg}")
+                
+                # Анализируем ошибку и обновляем статус аккаунта
+                status_for_session = await self.handle_send_error(account, error_msg, proxy_url)
+                
+                # Отправляем событие о смене статуса аккаунта
+                await self.send(text_data=json.dumps({
+                    'type': 'KICK_ACCOUNT_STATUS',
+                    'message': {
+                        'id': account.id,
+                        'login': account.login,
+                        'status': 'inactive'
+                    }
+                }))
+                
                 await self.send(text_data=json.dumps({
                     'type': 'KICK_ERROR',
-                    'message': error_msg
+                    'message': error_msg,
+                    'account': account_login,
+                    'channel': channel,
+                    'text': message_text
                 }))
                 return
 
@@ -623,9 +640,26 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             if not proxy_url:
                 error_msg = f'No proxy assigned to account {account_login}'
                 print(f"[SEND_MESSAGE] ERROR: {error_msg}")
+                
+                # Анализируем ошибку и обновляем статус аккаунта
+                status_for_session = await self.handle_send_error(account, error_msg, proxy_url)
+                
+                # Отправляем событие о смене статуса аккаунта
+                await self.send(text_data=json.dumps({
+                    'type': 'KICK_ACCOUNT_STATUS',
+                    'message': {
+                        'id': account.id,
+                        'login': account.login,
+                        'status': 'inactive'
+                    }
+                }))
+                
                 await self.send(text_data=json.dumps({
                     'type': 'KICK_ERROR',
-                    'message': error_msg
+                    'message': error_msg,
+                    'account': account_login,
+                    'channel': channel,
+                    'text': message_text
                 }))
                 return
 
@@ -641,6 +675,9 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             # Отправляем сообщение через асинхронный менеджер
             async def message_callback(request):
                 """Callback для обработки результата отправки"""
+                # Получаем информацию о том, является ли это авто-сообщением
+                is_auto = message_data.get('auto', False)
+                
                 if request.status.value == 'success':
                     success_msg = f'✅ Message sent successfully from {account_login} to {channel}: "{message_text}"'
                     print(f"[SEND_MESSAGE] {success_msg}")
@@ -650,7 +687,8 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                         'message': success_msg,
                         'account': account_login,
                         'channel': channel,
-                        'text': message_text
+                        'text': message_text,
+                        'auto': is_auto
                     }))
                 else:
                     error_msg = f'❌ Failed to send message from {account_login} to {channel}: {request.error}'
@@ -678,7 +716,8 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                         'message': error_msg,
                         'account': account_login,
                         'channel': channel,
-                        'text': message_text
+                        'text': message_text,
+                        'auto': is_auto
                     }))
             
             # Проверяем, не отменена ли работа
@@ -754,7 +793,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 print(f"[handle_send_error] Marked account {account.login} as inactive in DB due to security policy")
                 return "db_inactive"  # Возвращаем статус для пометки в БД
                 
-            elif "invalid token" in error_message.lower() or "unauthorized" in error_message.lower():
+            elif "invalid token" in error_message.lower() or "unauthorized" in error_message.lower() or "no session_token" in error_message.lower():
                 # Ошибка токена - помечаем аккаунт как неактивный в БД
                 account.status = 'inactive'
                 account.save()

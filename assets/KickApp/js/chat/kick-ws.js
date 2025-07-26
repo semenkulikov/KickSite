@@ -64,10 +64,23 @@ const socket = new WebSocket(endpoint);
         case 'KICK_ACCOUNTS':
           import('./kick-account').then(mod => {
             let accountsList = Array.isArray(message) ? message : (message && message.accounts ? message.accounts : []);
+            console.log('[KICK_ACCOUNTS] accountsList:', accountsList);
+            console.log('[KICK_ACCOUNTS] accountsList.length:', accountsList ? accountsList.length : 'null');
             console.log('kick-account module:', mod);
-            if (mod.showAccounts) mod.showAccounts(accountsList);
-            else if (mod.default && mod.default.showAccounts) mod.default.showAccounts(accountsList);
-            else console.error('showAccounts not found in kick-account module', mod);
+            
+            // Если нет аккаунтов, показываем предупреждение
+            if (!accountsList || accountsList.length === 0) {
+              console.log('[KICK_ACCOUNTS] No accounts found, calling showNoAccounts');
+              if (mod.showNoAccounts) mod.showNoAccounts();
+              else if (mod.default && mod.default.showNoAccounts) mod.default.showNoAccounts();
+              else console.error('showNoAccounts not found in kick-account module', mod);
+            } else {
+              console.log('[KICK_ACCOUNTS] Accounts found, calling showAccounts');
+              if (mod.showAccounts) mod.showAccounts(accountsList);
+              else if (mod.default && mod.default.showAccounts) mod.default.showAccounts(accountsList);
+              else console.error('showAccounts not found in kick-account module', mod);
+            }
+            
             // Обновляем состояние кнопок после загрузки аккаунтов
             setTimeout(() => updateWorkButtonsState(), 100);
           });
@@ -247,7 +260,7 @@ const socket = new WebSocket(endpoint);
         const successAccount = data.account || "unknown";
         showAlert(`✅ Message sent from ${successAccount}: ${successMessage}`, "alert-success", true, 2000);
         // Обновляем скорость на основе ответа от Kick
-        if (data.message && data.message.auto) {
+        if (data.auto) {
           recordAutoMessageResponse();
         } else {
           recordChatMessageResponse();
@@ -260,7 +273,7 @@ const socket = new WebSocket(endpoint);
         const sendAccount = data.account || "unknown";
         showAlert(`✅ Message sent from ${sendAccount}: ${sendMessage}`, "alert-success", true, 2000);
         // Обновляем скорость на основе ответа от Kick
-        if (data.message && data.message.auto) {
+        if (data.auto) {
           recordAutoMessageResponse();
         } else {
           recordChatMessageResponse();
@@ -272,7 +285,7 @@ const socket = new WebSocket(endpoint);
         const account = data.account || "unknown";
         showAlert(`❌ Failed to send from ${account}: ${errorMessage}`, "alert-danger", true, 4000);
         // Обновляем скорость на основе ответа от Kick (ошибка тоже считается)
-        if (data.message && data.message.auto) {
+        if (data.auto) {
           recordAutoMessageResponse();
         } else {
           recordChatMessageResponse();

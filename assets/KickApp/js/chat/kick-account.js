@@ -82,7 +82,10 @@ function showAccounts(accounts) {
     
             // Если массив — полная перерисовка (только при первой загрузке)
         accountsContainer.innerHTML = "";
-        if (!accounts.length) return;
+        if (!accounts.length) {
+            showNoAccounts();
+            return;
+        }
         
         let activeAccountsCount = 0;
         

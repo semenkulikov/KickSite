@@ -1,33 +1,30 @@
 // Speed Manager - управление скоростью сообщений на основе реальных ответов от Kick
 
-let chatMessagesSent = 0; // Счетчик отправленных ручных сообщений
-let chatStartTime = null; // Время начала чата
-let autoMessagesSent = 0; // Счетчик отправленных автосообщений
-let autoMessageStartTime = null; // Время начала авторассылки
+let chatMessagesResponded = 0; // Счетчик ручных сообщений, на которые получен ответ
+let chatResponseStartTime = null; // Время первого ответа на ручное сообщение
 let autoMessagesResponded = 0; // Счетчик автосообщений, на которые получен ответ
 let autoResponseStartTime = null; // Время первого ответа на автосообщение
+let updateInterval = null; // Интервал для обновления статистики
 
 // Функции для ручных сообщений
 function recordChatMessageSent() {
-  if (!chatStartTime) {
-    chatStartTime = Date.now();
-  }
-  chatMessagesSent++;
-  updateChatSpeed();
+  // Эта функция больше не используется для подсчета статистики
+  // Статистика считается только по ответам от Kick
 }
 
 function recordChatMessageResponse() {
   // Эта функция вызывается при получении ответа от Kick (успех/ошибка)
+  if (!chatResponseStartTime) {
+    chatResponseStartTime = Date.now();
+  }
+  chatMessagesResponded++;
   updateChatSpeed();
 }
 
 // Функции для автосообщений
 function recordAutoMessageSent() {
-  if (!autoMessageStartTime) {
-    autoMessageStartTime = Date.now();
-  }
-  autoMessagesSent++;
-  updateAutoSpeed();
+  // Эта функция больше не используется для подсчета статистики
+  // Статистика считается только по ответам от Kick
 }
 
 function recordAutoMessageResponse() {
@@ -42,9 +39,9 @@ function recordAutoMessageResponse() {
 // Обновление отображения скорости
 function updateChatSpeed() {
   const chatSpeedElement = document.getElementById("chatSpeed");
-  if (chatSpeedElement && chatStartTime && chatMessagesSent > 0) {
-    const elapsedMinutes = (Date.now() - chatStartTime) / 60000;
-    const currentChatSpeed = chatMessagesSent / elapsedMinutes;
+  if (chatSpeedElement && chatResponseStartTime && chatMessagesResponded > 0) {
+    const elapsedMinutes = (Date.now() - chatResponseStartTime) / 60000;
+    const currentChatSpeed = chatMessagesResponded / elapsedMinutes;
     chatSpeedElement.innerText = currentChatSpeed.toFixed(2);
   } else if (chatSpeedElement) {
     chatSpeedElement.innerText = "0.00";
@@ -54,30 +51,41 @@ function updateChatSpeed() {
 function updateAutoSpeed() {
   const autoSpeedElement = document.getElementById("autoSpeed");
   if (autoSpeedElement && autoResponseStartTime && autoMessagesResponded > 0) {
-    // Используем время первого ответа и количество ответов для расчета скорости
     const elapsedMinutes = (Date.now() - autoResponseStartTime) / 60000;
     const currentAutoSpeed = autoMessagesResponded / elapsedMinutes;
-    autoSpeedElement.innerText = currentAutoSpeed.toFixed(2);
-  } else if (autoSpeedElement && autoMessageStartTime && autoMessagesSent > 0) {
-    // Если еще нет ответов, показываем скорость на основе отправленных
-    const elapsedMinutes = (Date.now() - autoMessageStartTime) / 60000;
-    const currentAutoSpeed = autoMessagesSent / elapsedMinutes;
     autoSpeedElement.innerText = currentAutoSpeed.toFixed(2);
   } else if (autoSpeedElement) {
     autoSpeedElement.innerText = "0.00";
   }
 }
 
+// Запуск интервала обновления статистики
+function startSpeedUpdateInterval() {
+  if (updateInterval) {
+    clearInterval(updateInterval);
+  }
+  updateInterval = setInterval(() => {
+    updateChatSpeed();
+    updateAutoSpeed();
+  }, 1000); // Обновляем каждую секунду
+}
+
+// Остановка интервала обновления статистики
+function stopSpeedUpdateInterval() {
+  if (updateInterval) {
+    clearInterval(updateInterval);
+    updateInterval = null;
+  }
+}
+
 // Сброс счетчиков
 function resetChatSpeed() {
-  chatMessagesSent = 0;
-  chatStartTime = null;
+  chatMessagesResponded = 0;
+  chatResponseStartTime = null;
   updateChatSpeed();
 }
 
 function resetAutoSpeed() {
-  autoMessagesSent = 0;
-  autoMessageStartTime = null;
   autoMessagesResponded = 0;
   autoResponseStartTime = null;
   updateAutoSpeed();
@@ -92,9 +100,13 @@ export {
   resetChatSpeed,
   resetAutoSpeed,
   updateChatSpeed,
-  updateAutoSpeed
+  updateAutoSpeed,
+  startSpeedUpdateInterval,
+  stopSpeedUpdateInterval
 };
 
 // Делаем функции доступными глобально
 window.resetChatSpeed = resetChatSpeed;
-window.resetAutoSpeed = resetAutoSpeed; 
+window.resetAutoSpeed = resetAutoSpeed;
+window.startSpeedUpdateInterval = startSpeedUpdateInterval;
+window.stopSpeedUpdateInterval = stopSpeedUpdateInterval; 

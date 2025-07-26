@@ -133,9 +133,10 @@ if True: #DEBUG:
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': os.path.join(BASE_DIR, 'database', 'db.sqlite3'),
             'OPTIONS': {
-                'timeout': 20,  # Database lock timeout in seconds
+                'timeout': 30,  # Database lock timeout in seconds
+                'check_same_thread': False,  # Allow multiple threads
             },
-            'CONN_MAX_AGE': 600,  # Keep connections alive for 10 minutes
+            'CONN_MAX_AGE': 0,  # Close connections immediately
         }
     }
 
