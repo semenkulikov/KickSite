@@ -117,8 +117,11 @@ const socket = new WebSocket(endpoint);
         console.log('[KICK-WS] KICK_START_WORK received');
         countingSendingPerMinute(message);
         workTimer(message["startWorkTime"])
-        // Запускаем авторассылку если она активна
-        startAutoMessageSending();
+        // Запускаем авторассылку только если галочка активна
+        const autoMessageCheckboxStart = document.getElementById('sendAutoMessageStatus');
+        if (autoMessageCheckboxStart && autoMessageCheckboxStart.checked) {
+          startAutoMessageSending();
+        }
         break;
                    case 'KICK_END_WORK':
                console.log('[KICK_END_WORK] Starting work termination...');
