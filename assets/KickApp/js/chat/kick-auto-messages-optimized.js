@@ -25,17 +25,24 @@ async function sendBatchMessages(batch) {
         return;
     }
     
-    // Отправляем все сообщения синхронно для максимальной скорости
-    for (let i = 0; i < batch.length; i++) {
-        try {
-            ws.send(JSON.stringify({
-                "type": "KICK_SEND_MESSAGE",
-                "message": batch[i],
-            }));
-        } catch (error) {
-            console.error('[OPTIMIZED_AUTO] Error sending message:', error);
-        }
-    }
+    // Отправляем все сообщения асинхронно для максимальной скорости
+    const promises = batch.map(messageData => {
+        return new Promise((resolve) => {
+            try {
+                ws.send(JSON.stringify({
+                    "type": "KICK_SEND_MESSAGE",
+                    "message": messageData,
+                }));
+                resolve();
+            } catch (error) {
+                console.error('[OPTIMIZED_AUTO] Error sending message:', error);
+                resolve();
+            }
+        });
+    });
+    
+    // Ждем завершения всех отправок
+    await Promise.all(promises);
 }
 
 // Оптимизированная функция авторассылки
