@@ -7,6 +7,7 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.db import models
 import json
+from django.contrib.auth import get_user_model
 
 class MultipleFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
@@ -26,6 +27,13 @@ class MultipleFileField(forms.FileField):
 
 class MassImportForm(forms.Form):
     files = MultipleFileField(label='Файлы аккаунтов (JSON)', required=True)
+    assign_to_user = forms.ModelChoiceField(
+        queryset=get_user_model().objects.filter(is_active=True).order_by('username'),
+        label='Привязать к пользователю (необязательно)',
+        required=False,
+        empty_label="Не привязывать к пользователю",
+        help_text='Если выбран пользователь, все импортируемые аккаунты будут привязаны к нему'
+    )
 
 class MassProxyUpdateForm(forms.Form):
     proxy_file = forms.FileField(label='Файл с прокси (по одной на строку)', required=True)
@@ -91,7 +99,10 @@ class KickAccountAdmin(admin.ModelAdmin):
             form = MassImportForm(request.POST, request.FILES)
             if form.is_valid():
                 files = form.cleaned_data['files']
+                assign_to_user = form.cleaned_data['assign_to_user']
                 imported, errors = 0, []
+                assigned_count = 0
+                
                 for f in files:
                     try:
                         login = f.name.split('.')[0]
@@ -107,20 +118,41 @@ class KickAccountAdmin(admin.ModelAdmin):
                         if proxy_str:
                             proxy_url = normalize_proxy_url(proxy_str)
                             proxy_obj, _ = Proxy.objects.get_or_create(url=proxy_url)
-                        KickAccount.objects.update_or_create(
+                        
+                        # Создаем или обновляем аккаунт
+                        account, created = KickAccount.objects.update_or_create(
                             login=login,
-                            owner=request.user,
                             defaults={
                                 'token': token,
                                 'session_token': session_token,
                                 'proxy': proxy_obj,
+                                'owner': request.user,
                             }
                         )
+                        
+                        # Если выбран пользователь для привязки
+                        if assign_to_user and account not in assign_to_user.assigned_kick_accounts.all():
+                            # Создаем назначение аккаунта пользователю
+                            KickAccountAssignment.objects.get_or_create(
+                                kick_account=account,
+                                user=assign_to_user,
+                                defaults={
+                                    'assigned_by': request.user,
+                                    'assignment_type': 'admin_assigned',
+                                    'is_active': True,
+                                }
+                            )
+                            assigned_count += 1
+                        
                         imported += 1
                     except Exception as e:
                         errors.append(f"{f.name}: {str(e)}")
+                
+                # Формируем сообщения о результатах
                 if imported:
                     messages.success(request, f"Импортировано аккаунтов: {imported}")
+                    if assigned_count > 0:
+                        messages.success(request, f"Привязано к пользователю '{assign_to_user.username}': {assigned_count}")
                 if errors:
                     messages.error(request, "Ошибки импорта: " + "; ".join(errors))
                 return redirect('..')
