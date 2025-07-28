@@ -12,7 +12,7 @@ class CustomUserAdmin(UserAdmin):
     list_filter = ('is_active', 'is_staff', 'date_joined')
     search_fields = ('username', 'email', 'first_name', 'last_name')
     ordering = ('username',)
-    
+
     def get_queryset(self, request):
         """Ограничиваем доступ для обычных админов"""
         qs = super().get_queryset(request)
@@ -55,7 +55,7 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('role', 'phone', 'telegram')
         }),
     )
-    
+
     def get_queryset(self, request):
         """Фильтруем пользователей в зависимости от роли текущего пользователя"""
         qs = super().get_queryset(request)

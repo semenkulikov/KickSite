@@ -263,6 +263,137 @@ storage_state_executor = ThreadPoolExecutor(max_workers=2)
 
 @receiver(post_save, sender=KickAccount)
 def ensure_storage_state(sender, instance, created, **kwargs):
-    if not instance.login or not instance.password:
-        return
-    storage_state_executor.submit(async_generate_storage_state, instance.id)
+    """
+    Обеспечивает генерацию storage_state для новых аккаунтов
+    """
+    if created and not instance.storage_state_path:
+        # Запускаем генерацию в отдельном потоке
+        threading.Thread(target=async_generate_storage_state, args=(instance.id,), daemon=True).start()
+
+
+class AutoResponse(models.Model):
+    """
+    Модель для автоматических ответов к стримерам
+    """
+    RESPONSE_TYPE_CHOICES = [
+        ('chat', 'Чат сообщение'),
+        ('donation', 'Донат сообщение'),
+        ('subscription', 'Подписка сообщение'),
+    ]
+    
+    # Стример, к которому относится ответ
+    streamer_vid = models.CharField(max_length=100, verbose_name='VID стримера')
+    
+    # Тип ответа
+    response_type = models.CharField(max_length=20, choices=RESPONSE_TYPE_CHOICES, default='chat', verbose_name='Тип ответа')
+    
+    # Текст ответа
+    message = models.TextField(verbose_name='Сообщение')
+    
+    # Частота отправки (в секундах)
+    frequency = models.IntegerField(default=60, verbose_name='Частота отправки (сек)')
+    
+    # Активен ли ответ
+    is_active = models.BooleanField(default=True, verbose_name='Активен')
+    
+    # Приоритет (чем выше, тем важнее)
+    priority = models.IntegerField(default=1, verbose_name='Приоритет')
+    
+    # Время создания и обновления
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создан')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Обновлен')
+    
+    # Кто создал
+    created_by = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, verbose_name='Создан пользователем')
+    
+    class Meta:
+        verbose_name = 'Автоматический ответ'
+        verbose_name_plural = 'Автоматические ответы'
+        ordering = ['-priority', '-created_at']
+        unique_together = ['streamer_vid', 'response_type', 'message']
+    
+    def __str__(self):
+        return f"{self.streamer_vid} - {self.get_response_type_display()} - {self.message[:50]}"
+
+
+class StreamerStatus(models.Model):
+    """
+    Модель для отслеживания статуса стримеров
+    """
+    STATUS_CHOICES = [
+        ('active', 'Активен'),
+        ('inactive', 'Неактивен'),
+        ('unknown', 'Неизвестно'),
+    ]
+    
+    # VID стримера
+    vid = models.CharField(max_length=100, unique=True, verbose_name='VID стримера')
+    
+    # Статус стримера
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='unknown', verbose_name='Статус')
+    
+    # Последнее обновление статуса
+    last_updated = models.DateTimeField(auto_now=True, verbose_name='Последнее обновление')
+    
+    # Дополнительная информация
+    order_id = models.IntegerField(null=True, blank=True, verbose_name='ID заказа')
+    
+    # Пользователь, который будет отправлять сообщения к этому стримеру
+    assigned_user = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, blank=True, 
+                                    verbose_name='Назначенный пользователь')
+    
+    class Meta:
+        verbose_name = 'Статус стримера'
+        verbose_name_plural = 'Статусы стримеров'
+        ordering = ['-last_updated']
+    
+    def __str__(self):
+        return f"{self.vid} - {self.get_status_display()}"
+    
+    @property
+    def is_streaming(self):
+        """Проверяет, стримит ли стример"""
+        return self.status == 'active'
+    
+    def get_responses(self):
+        """Получает все активные ответы для этого стримера"""
+        return AutoResponse.objects.filter(
+            streamer_vid=self.vid,
+            is_active=True
+        ).order_by('-priority')
+    
+    def get_messages(self):
+        """Получает сообщения для этого стримера из Supabase"""
+        return StreamerMessage.objects.filter(
+            streamer=self,
+            is_active=True
+        ).order_by('?')  # Случайный порядок для разнообразия
+
+
+class StreamerMessage(models.Model):
+    """
+    Модель для хранения сообщений стримеров из Supabase
+    """
+    # Связь со стримером
+    streamer = models.ForeignKey(StreamerStatus, on_delete=models.CASCADE, related_name='messages', verbose_name='Стример', null=True, blank=True)
+    
+    # Текст сообщения
+    message = models.TextField(verbose_name='Сообщение')
+    
+    # Время создания
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создано')
+    
+    # Время последней отправки
+    last_sent = models.DateTimeField(null=True, blank=True, verbose_name='Последняя отправка')
+    
+    # Активно ли сообщение
+    is_active = models.BooleanField(default=True, verbose_name='Активно')
+    
+    class Meta:
+        verbose_name = 'Сообщение стримера'
+        verbose_name_plural = 'Сообщения стримеров'
+        ordering = ['-created_at']
+        unique_together = ['streamer', 'message']
+    
+    def __str__(self):
+        return f"{self.streamer.vid if self.streamer else 'Unknown'}: {self.message[:50]}..."
