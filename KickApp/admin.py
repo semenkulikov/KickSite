@@ -73,43 +73,47 @@ class KickAccountAdmin(admin.ModelAdmin):
                 # Обрабатываем данные аккаунтов
                 lines = accounts_data.strip().split('\n')
                 created_count = 0
+                errors = []
                 
-                for line in lines:
+                for line_num, line in enumerate(lines, 1):
                     line = line.strip()
                     if not line:
                         continue
                     
-                    parts = line.split('|')
-                    if len(parts) >= 2:
-                        login = parts[0].strip()
-                        token = parts[1].strip()
-                        session_token = parts[2].strip() if len(parts) > 2 else ''
-                        
-                        # Создаем аккаунт
-                        account, created = KickAccount.objects.get_or_create(
-                            login=login,
-                            defaults={
-                                'token': token,
-                                'session_token': session_token,
-                                'owner': request.user
-                            }
-                        )
-                        
-                        if created:
-                            created_count += 1
+                    try:
+                        parts = line.split('|')
+                        if len(parts) >= 2:
+                            login = parts[0].strip()
+                            token = parts[1].strip()
+                            session_token = parts[2].strip() if len(parts) > 2 else ''
                             
-                            # Назначаем пользователю если указан
-                            if assign_to_user:
-                                KickAccountAssignment.objects.get_or_create(
-                                    kick_account=account,
-                                    user=assign_to_user,
-                                    defaults={
-                                        'assigned_by': request.user,
-                                        'assignment_type': 'admin_assigned'
-                                    }
-                                )
+                            # Проверяем, не существует ли уже аккаунт
+                            if KickAccount.objects.filter(login=login).exists():
+                                errors.append(f"Строка {line_num}: Аккаунт {login} уже существует")
+                                continue
+                            
+                            # Создаем аккаунт
+                            account = KickAccount.objects.create(
+                                login=login,
+                                token=token,
+                                session_token=session_token,
+                                owner=assign_to_user or request.user,
+                                status='active'
+                            )
+                            
+                            created_count += 1
+                        else:
+                            errors.append(f"Строка {line_num}: Неверный формат данных")
+                    except Exception as e:
+                        errors.append(f"Строка {line_num}: Ошибка - {str(e)}")
                 
-                messages.success(request, f'Успешно импортировано {created_count} аккаунтов')
+                if created_count > 0:
+                    messages.success(request, f'Успешно импортировано {created_count} аккаунтов')
+                
+                if errors:
+                    for error in errors:
+                        messages.warning(request, error)
+                
                 return redirect('admin:KickApp_kickaccount_changelist')
         else:
             form = MassImportForm()
@@ -119,7 +123,7 @@ class KickAccountAdmin(admin.ModelAdmin):
             'title': 'Массовый импорт аккаунтов',
             'opts': self.model._meta,
         }
-        return render(request, 'admin/kickaccount_mass_import.html', context)
+        return render(request, 'admin/KickApp/kickaccount/mass_import.html', context)
 
 @admin.register(HydraBotSettings)
 class HydraBotSettingsAdmin(admin.ModelAdmin):
