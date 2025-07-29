@@ -11,6 +11,7 @@ import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from asgiref.sync import sync_to_async
+from django.utils import timezone
 
 # Create your models here.
 
@@ -397,3 +398,90 @@ class StreamerMessage(models.Model):
     
     def __str__(self):
         return f"{self.streamer.vid if self.streamer else 'Unknown'}: {self.message[:50]}..."
+
+
+class HydraBotSettings(models.Model):
+    """
+    Настройки бота "Гидра" для автоматической отправки сообщений
+    """
+    # Включен ли бот
+    is_enabled = models.BooleanField(default=True, verbose_name='Бот включен')
+    
+    # Интервал между сообщениями (в секундах)
+    message_interval = models.IntegerField(default=1, verbose_name='Интервал между сообщениями (сек)',
+                                        help_text='Интервал между отдельными сообщениями в одном цикле')
+    
+    # Интервал между циклами (в секундах) - новый цикл = отправка всех сообщений
+    cycle_interval = models.IntegerField(default=3, verbose_name='Интервал между циклами (сек)',
+                                       help_text='Интервал между полными циклами отправки всех сообщений')
+    
+    # Интервал синхронизации с Supabase (в секундах)
+    sync_interval = models.IntegerField(default=180, verbose_name='Интервал синхронизации (сек)')
+    
+    # Максимальное количество одновременных отправок
+    max_concurrent_sends = models.IntegerField(default=1000, verbose_name='Макс. одновременных отправок')
+    
+    # Минимальный интервал между отправкой одного сообщения (в секундах)
+    min_message_interval = models.IntegerField(default=300, verbose_name='Мин. интервал между сообщениями (сек)')
+    
+    # Время создания и обновления
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создано')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Обновлено')
+    
+    class Meta:
+        verbose_name = 'Настройки бота Гидра'
+        verbose_name_plural = 'Настройки бота Гидра'
+    
+    def __str__(self):
+        status = "✅ Включен" if self.is_enabled else "❌ Выключен"
+        return f"Гидра: {status}"
+    
+    @classmethod
+    def get_settings(cls):
+        """Получает настройки бота (создает если не существует)"""
+        settings, created = cls.objects.get_or_create(
+            id=1,
+            defaults={
+                'is_enabled': True,
+                'message_interval': 1,
+                'cycle_interval': 3,  # 3 секунды между циклами
+                'sync_interval': 180,
+                'max_concurrent_sends': 1000,
+                'min_message_interval': 300
+            }
+        )
+        return settings
+
+@receiver(post_save, sender=HydraBotSettings)
+def restart_hydra_on_settings_change(sender, instance, created, **kwargs):
+    """
+    Перезапускает бота "Гидра" при изменении настроек
+    """
+    # Не срабатываем при создании новой записи
+    if created:
+        return
+        
+    try:
+        # Импортируем здесь чтобы избежать циклических импортов
+        from .auto_message_sender import restart_auto_messaging
+        
+        # Запускаем перезапуск в отдельном потоке
+        def restart_in_thread():
+            import time
+            time.sleep(2)  # Небольшая пауза для применения изменений
+            
+            # Проверяем актуальные настройки из базы данных
+            instance.refresh_from_db()
+            
+            if instance.is_enabled:
+                print("🚀 Включаем бота Гидру...")
+                restart_auto_messaging()
+            else:
+                print("🛑 Отключаем бота Гидру...")
+                from .auto_message_sender import stop_auto_messaging
+                stop_auto_messaging()
+        
+        threading.Thread(target=restart_in_thread, daemon=True).start()
+        
+    except Exception as e:
+        print(f"Ошибка перезапуска Гидры: {e}")
