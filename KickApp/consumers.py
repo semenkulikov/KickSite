@@ -507,7 +507,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             # Отменяем все активные запросы при отмене задачи
             try:
                 if hasattr(self, 'process_manager'):
-                    await self.process_manager.cancel_all_requests()
+                    self.process_manager.cancel_all()
                     print(f"Cancelled all active processes for user {self.user.id} due to work task cancellation")
             except Exception as e:
                 print(f"Error cancelling processes: {e}")
@@ -528,7 +528,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             except Exception as e:
                 print(f"Error checking timeouts: {e}")
                 break
-
+    
     async def end_work(self):
         """Stop work task and cancel all active requests"""
         print("[END_WORK] Starting work termination...")
@@ -542,7 +542,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
         try:
             # Отменяем все активные запросы для этого пользователя
             if hasattr(self, 'process_manager'):
-                await self.process_manager.cancel_all_requests()
+                self.process_manager.cancel_all()
                 print(f"[END_WORK] Cancelled all active processes for user {self.user.id}")
                 
                 # Ждем завершения всех процессов (максимум 5 секунд)
@@ -585,7 +585,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             print(f"[SEND_MESSAGE] Received message data: {message_data}")
             
             # Проверяем, не остановлена ли работа
-            if not hasattr(self, 'work_task') or not self.work_task or self.work_task.done():
+            if not hasattr(self, 'work_task') or not self.work_task or self.work_task.cancelled():
                 print(f"[SEND_MESSAGE] Work not active, rejecting message from {message_data.get('account', 'unknown')}")
                 await self.send(text_data=json.dumps({
                     'type': 'KICK_ERROR',
@@ -756,6 +756,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 token=token,
                 session_token=session_token,
                 proxy_url=proxy_url,
+                auto=message_data.get('auto', False),  # Передаем флаг auto
                 callback=message_callback
             )
             

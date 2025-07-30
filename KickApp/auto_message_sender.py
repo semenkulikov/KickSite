@@ -549,7 +549,8 @@ class AutoMessageSender:
                 message=message,
                 token=account_token,
                 session_token=account_session_token,
-                proxy_url=proxy_url
+                proxy_url=proxy_url,
+                auto=True  # Это авто-сообщение
             )
             
             # Проверяем результат

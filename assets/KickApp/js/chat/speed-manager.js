@@ -123,4 +123,6 @@ window.resetChatSpeed = resetChatSpeed;
 window.resetAutoSpeed = resetAutoSpeed;
 window.startSpeedUpdateInterval = startSpeedUpdateInterval;
 window.stopSpeedUpdateInterval = stopSpeedUpdateInterval;
+window.recordChatMessageResponse = recordChatMessageResponse;
+window.recordAutoMessageResponse = recordAutoMessageResponse;
  

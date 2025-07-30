@@ -30,6 +30,8 @@ class MessageRequest:
         self.response = None
         self.start_time = time.time()
         self.end_time = None
+        self.auto = False  # Флаг для авто-сообщений
+        self.callback = None  # Callback функция
 
 class ProcessMessageManager:
     def __init__(self, max_workers=4):
@@ -43,7 +45,21 @@ class ProcessMessageManager:
         self._cancelled = True
         logger.info("Отмена всех запросов")
     
-    async def send_message_async(self, request_id, channel, account, message, token, session_token, proxy_url):
+    def get_stats(self):
+        """Возвращает статистику активных запросов"""
+        active_requests = len([req for req in self.requests.values() if req.status == MessageStatus.PENDING])
+        return {
+            'active_requests': active_requests,
+            'total_requests': len(self.requests)
+        }
+    
+    async def reset_state(self):
+        """Сбрасывает состояние менеджера для новой работы"""
+        self._cancelled = False
+        self.requests.clear()
+        logger.info("Состояние менеджера сброшено")
+    
+    async def send_message_async(self, request_id, channel, account, message, token, session_token, proxy_url, auto=False, callback=None):
         """
         Асинхронно отправляет сообщение через отдельный процесс
         Передаем только примитивные данные, а не Django объекты
@@ -54,6 +70,8 @@ class ProcessMessageManager:
         
         # Создаем запрос с примитивными данными
         request = MessageRequest(request_id, channel, account, message, token, session_token, proxy_url)
+        request.auto = auto  # Добавляем флаг auto
+        request.callback = callback  # Добавляем callback
         self.requests[request_id] = request
         
         try:
@@ -66,7 +84,8 @@ class ProcessMessageManager:
                 'message': message,
                 'token': token,
                 'session_token': session_token,
-                'proxy_url': proxy_url or ""
+                'proxy_url': proxy_url or "",
+                'auto': auto
             }
             
             logger.info(f"Started process for request {request_id} (account: {account})")
@@ -92,6 +111,13 @@ class ProcessMessageManager:
                 request.error = result
             
             request.end_time = time.time()
+            
+            # Вызываем callback если он есть
+            if request.callback:
+                try:
+                    await request.callback(request)
+                except Exception as e:
+                    logger.error(f"Error in callback for request {request_id}: {e}")
             
             return request
             
@@ -167,7 +193,9 @@ def send_message_process(request_data):
     
     process_id = os.getpid()
     account = request_data.get('account', 'unknown')
-    logger.info(f"Process {process_id} starting for account {account}")
+    auto = request_data.get('auto', False)
+    message_type = "AUTO" if auto else "MANUAL"
+    logger.info(f"Process {process_id} starting for account {account} ({message_type})")
     
     try:
         # Устанавливаем обработчик сигнала для возможности отмены
