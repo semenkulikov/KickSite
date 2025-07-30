@@ -83,7 +83,7 @@ class Shift(models.Model):
             self.auto_messages += 1
         self.update_speed()
         self.save()
-
+    
     def add_action(self, action_type, description, details=None):
         """Добавляет действие в лог смены"""
         from .models import ShiftLog
@@ -93,30 +93,6 @@ class Shift(models.Model):
             description=description,
             details=details
         )
-
-    def finish(self):
-        """Завершает смену и рассчитывает финальную статистику"""
-        if self.is_active:
-            self.end_time = timezone.now()
-            self.is_active = False
-            
-            # Рассчитываем среднюю скорость
-            duration_minutes = self.duration.total_seconds() / 60
-            if duration_minutes > 0:
-                self.average_speed = round(self.total_messages / duration_minutes, 2)
-                # Рассчитываем скорость автосообщений
-                if self.auto_messages > 0:
-                    self.auto_speed = round(self.auto_messages / duration_minutes, 2)
-            
-            # Рассчитываем общую длительность таймаутов
-            total_timeout_seconds = sum(
-                timeout.duration_seconds for timeout in self.timeouts.all() 
-                if timeout.duration_seconds > 0
-            )
-            self.total_timeout_duration = total_timeout_seconds
-            
-            self.save()
-            print(f"Shift {self.id} finished: duration={self.duration_str}, messages={self.total_messages}, auto_messages={self.auto_messages}")
 
 
 class MessageLog(models.Model):

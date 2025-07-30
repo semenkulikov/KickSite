@@ -20,7 +20,7 @@ import re
 import subprocess
 
 
-def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message: str, token: str, session_token: str, proxy_url: str = ""):
+async def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message: str, token: str, session_token: str, proxy_url: str = ""):
     """
     Отправляет сообщение в чат Kick.com используя cloudscraper
     Точная копия рабочего кода kickchatsend.py
@@ -340,23 +340,6 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             print(f"[LOG_MESSAGE] Cannot log: shift_manager={self.shift_manager}, user={self.user}")
         return False
 
-    async def send_stats_update(self, shift):
-        """Отправляет полную статистику смены в websocket"""
-        from StatsApp.shift_manager import get_shift_manager
-        shift_manager = get_shift_manager(self.user)
-        stats = await sync_to_async(shift_manager.get_shift_statistics)(shift)
-        await self.send(text_data=json.dumps({
-            'event': 'KICK_STATS_UPDATE',
-            'message': stats
-        }))
-
-    async def send_stats_update_message(self, event):
-        """Обработчик для отправки статистики через channel layer"""
-        await self.send(text_data=json.dumps({
-            'event': event['event'],
-            'message': event['message']
-        }))
-
     async def receive(self, text_data=None, bytes_data=None):
         print('[KICK-WS] RECEIVE:', text_data)
         if not text_data:
@@ -368,11 +351,6 @@ class KickAppChatWs(AsyncWebsocketConsumer):
 
         if event == 'KICK_CONNECT' or _type == 'KICK_CONNECT':
             pass
-        elif event == 'KICK_STATS_UPDATE' or _type == 'KICK_STATS_UPDATE':
-            # Ручной запрос статистики смены
-            if self.shift_manager and self.shift_manager.current_shift:
-                await self.send_stats_update(self.shift_manager.current_shift)
-            return
         elif _type == 'KICK_SELECT_CHANNEL':
             print('[KICK-WS] KICK_SELECT_CHANNEL:', json_data)
             channel_name = json_data.get('channel')
@@ -507,7 +485,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             # Отменяем все активные запросы при отмене задачи
             try:
                 if hasattr(self, 'process_manager'):
-                    self.process_manager.cancel_all()
+                    await self.process_manager.cancel_all_requests()
                     print(f"Cancelled all active processes for user {self.user.id} due to work task cancellation")
             except Exception as e:
                 print(f"Error cancelling processes: {e}")
@@ -528,7 +506,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             except Exception as e:
                 print(f"Error checking timeouts: {e}")
                 break
-    
+
     async def end_work(self):
         """Stop work task and cancel all active requests"""
         print("[END_WORK] Starting work termination...")
@@ -542,7 +520,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
         try:
             # Отменяем все активные запросы для этого пользователя
             if hasattr(self, 'process_manager'):
-                self.process_manager.cancel_all()
+                await self.process_manager.cancel_all_requests()
                 print(f"[END_WORK] Cancelled all active processes for user {self.user.id}")
                 
                 # Ждем завершения всех процессов (максимум 5 секунд)
@@ -585,7 +563,7 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             print(f"[SEND_MESSAGE] Received message data: {message_data}")
             
             # Проверяем, не остановлена ли работа
-            if not hasattr(self, 'work_task') or not self.work_task or self.work_task.cancelled():
+            if not hasattr(self, 'work_task') or not self.work_task or self.work_task.done():
                 print(f"[SEND_MESSAGE] Work not active, rejecting message from {message_data.get('account', 'unknown')}")
                 await self.send(text_data=json.dumps({
                     'type': 'KICK_ERROR',
@@ -756,7 +734,6 @@ class KickAppChatWs(AsyncWebsocketConsumer):
                 token=token,
                 session_token=session_token,
                 proxy_url=proxy_url,
-                auto=message_data.get('auto', False),  # Передаем флаг auto
                 callback=message_callback
             )
             

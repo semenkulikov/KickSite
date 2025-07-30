@@ -121,7 +121,29 @@ class AutoMessageSender:
             for manager in self._managers_cache.values():
                 try:
                     print(f"🛑 Отменяем все процессы в менеджере...")
-                    manager.cancel_all()
+                    # Простая отмена без сложной логики event loop
+                    import asyncio
+                    try:
+                        # Пытаемся получить текущий loop
+                        loop = asyncio.get_event_loop()
+                        if not loop.is_closed():
+                            # Если loop работает, добавляем задачу
+                            if loop.is_running():
+                                loop.call_soon_threadsafe(lambda: asyncio.create_task(manager.cancel_all_requests()))
+                            else:
+                                loop.run_until_complete(manager.cancel_all_requests())
+                        else:
+                            # Если loop закрыт, создаем новый
+                            new_loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(new_loop)
+                            try:
+                                new_loop.run_until_complete(manager.cancel_all_requests())
+                            finally:
+                                new_loop.close()
+                    except (RuntimeError, Exception) as e:
+                        print(f"⚠️ Не удалось отменить процессы через event loop: {e}")
+                        # Просто логируем ошибку, но не падаем
+                        logger.warning(f"Не удалось отменить процессы через event loop: {e}")
                 except Exception as e:
                     print(f"❌ Ошибка отмены процессов: {e}")
                     logger.error(f"Ошибка отмены процессов: {e}")
@@ -133,10 +155,18 @@ class AutoMessageSender:
                 print("🛑 Останавливаем event loop...")
                 # Проверяем, что мы не в том же потоке, что и event loop
                 if threading.current_thread() != self.thread:
-                    self._loop.call_soon_threadsafe(self._loop.stop)
+                    try:
+                        self._loop.call_soon_threadsafe(self._loop.stop)
+                    except Exception as e:
+                        print(f"⚠️ Не удалось остановить event loop через call_soon_threadsafe: {e}")
+                        logger.warning(f"Не удалось остановить event loop через call_soon_threadsafe: {e}")
                 else:
                     # Если мы в том же потоке, просто останавливаем
-                    self._loop.stop()
+                    try:
+                        self._loop.stop()
+                    except Exception as e:
+                        print(f"⚠️ Не удалось остановить event loop: {e}")
+                        logger.warning(f"Не удалось остановить event loop: {e}")
             except Exception as e:
                 print(f"❌ Ошибка остановки event loop: {e}")
                 logger.error(f"Ошибка остановки event loop: {e}")
@@ -382,19 +412,21 @@ class AutoMessageSender:
                 'is_active': await sync_to_async(lambda: hydra_settings.is_active)()
             })
             
-            # Отправляем сообщения с учетом индивидуальных настроек
+            # Отправляем сообщения асинхронно (как в основном сайте)
             sent_count = 0
             failed_count = 0
             
             logger.info(f"🔄 Начинаем отправку {len(messages)} сообщений для стримера {streamer.vid}")
+            
+            # Создаем список задач для асинхронной отправки
+            import asyncio
+            tasks = []
             
             for i, message in enumerate(messages):
                 # Проверяем флаг остановки перед каждым сообщением
                 if not self.is_running:
                     logger.info(f"🛑 Получен сигнал остановки, прерываем цикл для стримера {streamer.vid}")
                     break
-                
-                logger.info(f"📝 Обрабатываем сообщение {i+1}/{len(messages)} для стримера {streamer.vid}")
                 
                 if not await sync_to_async(lambda: message.is_active)():
                     logger.info(f"⏸️ Сообщение {i+1} неактивно, пропускаем")
@@ -404,46 +436,47 @@ class AutoMessageSender:
                 account = user_accounts[i % len(user_accounts)]
                 logger.info(f"👤 Используем аккаунт {await sync_to_async(lambda: account.login)()} для сообщения {i+1}")
                 
-                # Отправляем сообщение через простую функцию (как в основном сайте)
-                success = await self._send_message_simple(
+                # Создаем задачу для асинхронной отправки (не ждем завершения)
+                task = asyncio.create_task(self._send_message_async(
                     account,
                     streamer.vid,
                     await sync_to_async(lambda: message.message)(),
-                    streamer.assigned_user # Pass assigned_user here
-                )
+                    streamer.assigned_user,
+                    shift,
+                    i + 1,
+                    len(messages)
+                ))
+                tasks.append(task)
                 
-                # Логируем в смену ВСЕ сообщения
+                # Логируем в смену ВСЕ сообщения сразу
                 await self._log_auto_message_to_shift(shift, streamer.vid, await sync_to_async(lambda: account.login)(), await sync_to_async(lambda: message.message)())
                 
-                if success:
-                    sent_count += 1
-                    # Обновляем статистику после каждого успешного сообщения
-                    await sync_to_async(shift.update_speed)()
-                    logger.info(f"📊 Статистика обновлена после сообщения {sent_count} для {streamer.vid}")
-                    
-                    # Логируем успешную отправку
-                    await sync_to_async(shift.add_action)('message_success', f'Сообщение успешно отправлено: {await sync_to_async(lambda: account.login)()} -> {streamer.vid}', {
-                        'account': await sync_to_async(lambda: account.login)(),
-                        'channel': streamer.vid,
-                        'message': await sync_to_async(lambda: message.message)()[:50] + '...' if len(await sync_to_async(lambda: message.message)()) > 50 else await sync_to_async(lambda: message.message)(),
-                        'message_number': sent_count
-                    })
-                else:
-                    failed_count += 1
-                    logger.warning(f"❌ Сообщение {i+1} не отправлено для {streamer.vid}")
-                    
-                    # Логируем неудачную отправку
-                    await sync_to_async(shift.add_action)('message_failed', f'Сообщение не отправлено: {await sync_to_async(lambda: account.login)()} -> {streamer.vid}', {
-                        'account': await sync_to_async(lambda: account.login)(),
-                        'channel': streamer.vid,
-                        'message': await sync_to_async(lambda: message.message)()[:50] + '...' if len(await sync_to_async(lambda: message.message)()) > 50 else await sync_to_async(lambda: message.message)(),
-                        'message_number': i + 1
-                    })
-                
-                # Пауза между сообщениями (используем индивидуальные настройки или глобальные)
+                # Пауза между запуском задач (используем индивидуальные настройки или глобальные)
                 message_interval = await sync_to_async(lambda: hydra_settings.get_message_interval())() or self.settings.message_interval or 1
                 logger.info(f"⏱️ Интервал между сообщениями для {streamer.vid}: {message_interval} сек (индивидуальный: {await sync_to_async(lambda: hydra_settings.message_interval)()}, глобальный: {self.settings.message_interval})")
-                await asyncio.sleep(message_interval)
+                
+                if message_interval > 0:
+                    await asyncio.sleep(message_interval)
+            
+            # Ждем завершения всех задач (опционально)
+            if tasks:
+                logger.info(f"⏳ Ждем завершения {len(tasks)} задач для стримера {streamer.vid}")
+                try:
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    
+                    # Подсчитываем результаты
+                    for result in results:
+                        if isinstance(result, Exception):
+                            failed_count += 1
+                            logger.error(f"❌ Ошибка в задаче: {result}")
+                        elif result:
+                            sent_count += 1
+                        else:
+                            failed_count += 1
+                except Exception as e:
+                    logger.error(f"❌ Ошибка при ожидании завершения задач: {e}")
+                    # Если не удалось дождаться завершения, считаем все как неудачные
+                    failed_count += len(tasks)
             
             logger.info(f"✅ Завершен цикл отправки для {streamer.vid}: отправлено {sent_count}, неудачно {failed_count}")
             
@@ -509,6 +542,117 @@ class AutoMessageSender:
             import traceback
             traceback.print_exc()
     
+    async def _send_message_async(self, account, channel, message, user, shift, message_number, total_messages):
+        """Асинхронно отправляет сообщение (не ждет завершения)"""
+        try:
+            # Получаем данные аккаунта
+            account_login = await sync_to_async(lambda: account.login)()
+            account_token = await sync_to_async(lambda: account.token)()
+            account_session_token = await sync_to_async(lambda: account.session_token)()
+            account_proxy = await sync_to_async(lambda: account.proxy)()
+            
+            # Проверяем обязательные поля
+            if not account_session_token:
+                logger.warning(f"❌ No session_token for account {account_login}")
+                return False
+
+            if not account_proxy:
+                logger.warning(f"❌ No proxy assigned to account {account_login}")
+                return False
+            
+            # Получаем URL прокси
+            proxy_url = await sync_to_async(lambda: account_proxy.url)() if account_proxy else ""
+            
+            # Используем кэшированный ProcessMessageManager для пользователя
+            manager = self._get_manager_for_user(user.id)
+            
+            # Создаем уникальный ID для запроса
+            import time
+            request_id = f"hydra_{account_login}_{channel}_{int(time.time() * 1000)}"
+            
+            # Логируем отправку сообщения в консоль
+            print(f"📤 Отправляем сообщение: {account_login} -> {channel}: {message}")
+            logger.info(f"📤 Отправляем сообщение: {account_login} -> {channel}: {message}")
+            
+            # Создаем callback для обработки результата
+            async def message_callback(request):
+                """Callback для обработки результата отправки"""
+                if request.status.value == 'success':
+                    success_msg = f'✅ Message sent successfully from {account_login} to {channel}: "{message}"'
+                    print(f"[HYDRA] {success_msg}")
+                    logger.info(f"[HYDRA] {success_msg}")
+                    
+                    # Обновляем статистику
+                    await sync_to_async(shift.update_speed)()
+                    
+                    # Логируем успешную отправку
+                    message_display = message[:50] + '...' if len(message) > 50 else message
+                    await sync_to_async(shift.add_action)('message_success', f'Сообщение успешно отправлено: {account_login} -> {channel}', {
+                        'account': account_login,
+                        'channel': channel,
+                        'message': message_display,
+                        'message_number': message_number
+                    })
+                    return True
+                else:
+                    error_msg = f'❌ Failed to send message from {account_login} to {channel}: {request.error}'
+                    print(f"[HYDRA] {error_msg}")
+                    logger.warning(f"[HYDRA] {error_msg}")
+                    
+                    # Проверяем, что это ошибка от Kick, а не сеть/таймаут
+                    error = str(request.error).lower()
+                    if any(keyword in error for keyword in ['banned', 'followers', 'rate limit', 'security', 'kick.com']):
+                        # Это ответ от Kick - считаем успешным
+                        print(f"✅ Сообщение отправлено (ответ от Kick): {account_login} -> {channel} - {request.error}")
+                        logger.info(f"✅ Сообщение отправлено (ответ от Kick): {account_login} - {request.error}")
+                        
+                        # Обновляем статистику
+                        await sync_to_async(shift.update_speed)()
+                        
+                        # Логируем успешную отправку
+                        message_display = message[:50] + '...' if len(message) > 50 else message
+                        await sync_to_async(shift.add_action)('message_success', f'Сообщение отправлено (ответ от Kick): {account_login} -> {channel}', {
+                            'account': account_login,
+                            'channel': channel,
+                            'message': message_display,
+                            'message_number': message_number
+                        })
+                        return True
+                    else:
+                        # Это ошибка сети/таймаут - считаем неуспешным
+                        print(f"❌ Ошибка сети/таймаут: {account_login} -> {channel} - {request.error}")
+                        logger.warning(f"❌ Ошибка сети/таймаут: {account_login} - {request.error}")
+                        
+                        # Логируем неудачную отправку
+                        message_display = message[:50] + '...' if len(message) > 50 else message
+                        await sync_to_async(shift.add_action)('message_failed', f'Сообщение не отправлено: {account_login} -> {channel}', {
+                            'account': account_login,
+                            'channel': channel,
+                            'message': message_display,
+                            'message_number': message_number
+                        })
+                        return False
+            
+            # Отправляем сообщение через ProcessMessageManager (не ждем завершения)
+            result = await manager.send_message_async(
+                request_id=request_id,
+                channel=channel,
+                account=account_login,
+                message=message,
+                token=account_token,
+                session_token=account_session_token,
+                proxy_url=proxy_url,
+                auto=True,  # Это авто-сообщение
+                callback=message_callback
+            )
+            
+            # Возвращаем True сразу (не ждем завершения)
+            return True
+                
+        except Exception as e:
+            logger.error(f"Ошибка отправки сообщения: {e}")
+            return False
+
     async def _send_message_simple(self, account, channel, message, user):
         """Отправляет сообщение используя ProcessMessageManager (как в основном сайте)"""
         try:
@@ -541,6 +685,32 @@ class AutoMessageSender:
             print(f"📤 Отправляем сообщение: {account_login} -> {channel}: {message}")
             logger.info(f"📤 Отправляем сообщение: {account_login} -> {channel}: {message}")
             
+            # Создаем callback для обработки результата (как в основном сайте)
+            async def message_callback(request):
+                """Callback для обработки результата отправки"""
+                if request.status.value == 'success':
+                    success_msg = f'✅ Message sent successfully from {account_login} to {channel}: "{message}"'
+                    print(f"[HYDRA] {success_msg}")
+                    logger.info(f"[HYDRA] {success_msg}")
+                    return True
+                else:
+                    error_msg = f'❌ Failed to send message from {account_login} to {channel}: {request.error}'
+                    print(f"[HYDRA] {error_msg}")
+                    logger.warning(f"[HYDRA] {error_msg}")
+                    
+                    # Проверяем, что это ошибка от Kick, а не сеть/таймаут
+                    error = str(request.error).lower()
+                    if any(keyword in error for keyword in ['banned', 'followers', 'rate limit', 'security', 'kick.com']):
+                        # Это ответ от Kick - считаем успешным
+                        print(f"✅ Сообщение отправлено (ответ от Kick): {account_login} -> {channel} - {request.error}")
+                        logger.info(f"✅ Сообщение отправлено (ответ от Kick): {account_login} - {request.error}")
+                        return True
+                    else:
+                        # Это ошибка сети/таймаут - считаем неуспешным
+                        print(f"❌ Ошибка сети/таймаут: {account_login} -> {channel} - {request.error}")
+                        logger.warning(f"❌ Ошибка сети/таймаут: {account_login} - {request.error}")
+                        return False
+            
             # Отправляем сообщение через ProcessMessageManager (как в основном сайте)
             result = await manager.send_message_async(
                 request_id=request_id,
@@ -550,8 +720,16 @@ class AutoMessageSender:
                 token=account_token,
                 session_token=account_session_token,
                 proxy_url=proxy_url,
-                auto=True  # Это авто-сообщение
+                auto=True,  # Это авто-сообщение
+                callback=message_callback
             )
+            
+            # Ждем завершения процесса (максимум 30 секунд)
+            import asyncio
+            for _ in range(300):  # 30 секунд / 0.1 секунды
+                if result.status.value in ['success', 'failed', 'cancelled']:
+                    break
+                await asyncio.sleep(0.1)
             
             # Проверяем результат
             if result and result.status.value == 'success':
