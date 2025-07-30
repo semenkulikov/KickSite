@@ -20,7 +20,7 @@ import re
 import subprocess
 
 
-async def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message: str, token: str, session_token: str, proxy_url: str = ""):
+def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message: str, token: str, session_token: str, proxy_url: str = ""):
     """
     Отправляет сообщение в чат Kick.com используя cloudscraper
     Точная копия рабочего кода kickchatsend.py
@@ -340,6 +340,23 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             print(f"[LOG_MESSAGE] Cannot log: shift_manager={self.shift_manager}, user={self.user}")
         return False
 
+    async def send_stats_update(self, shift):
+        """Отправляет полную статистику смены в websocket"""
+        from StatsApp.shift_manager import get_shift_manager
+        shift_manager = get_shift_manager(self.user)
+        stats = await sync_to_async(shift_manager.get_shift_statistics)(shift)
+        await self.send(text_data=json.dumps({
+            'event': 'KICK_STATS_UPDATE',
+            'message': stats
+        }))
+
+    async def send_stats_update_message(self, event):
+        """Обработчик для отправки статистики через channel layer"""
+        await self.send(text_data=json.dumps({
+            'event': event['event'],
+            'message': event['message']
+        }))
+
     async def receive(self, text_data=None, bytes_data=None):
         print('[KICK-WS] RECEIVE:', text_data)
         if not text_data:
@@ -351,6 +368,11 @@ class KickAppChatWs(AsyncWebsocketConsumer):
 
         if event == 'KICK_CONNECT' or _type == 'KICK_CONNECT':
             pass
+        elif event == 'KICK_STATS_UPDATE' or _type == 'KICK_STATS_UPDATE':
+            # Ручной запрос статистики смены
+            if self.shift_manager and self.shift_manager.current_shift:
+                await self.send_stats_update(self.shift_manager.current_shift)
+            return
         elif _type == 'KICK_SELECT_CHANNEL':
             print('[KICK-WS] KICK_SELECT_CHANNEL:', json_data)
             channel_name = json_data.get('channel')

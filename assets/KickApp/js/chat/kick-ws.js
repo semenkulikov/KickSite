@@ -307,6 +307,19 @@ socket.binaryType = 'arraybuffer'; // Используем ArrayBuffer для л
           else console.error('showAccounts not found in kick-account module', mod);
         });
         break;
+      case 'KICK_STATS_UPDATE':
+        if (message) {
+          // message содержит stats: {total_messages, auto_messages, average_speed, auto_speed, set_frequency, ...}
+          const chatSpeedElement = document.getElementById("chatSpeed");
+          if (chatSpeedElement) chatSpeedElement.innerText = (message.average_speed || 0).toFixed(2);
+          const autoSpeedElement = document.getElementById("autoSpeed");
+          if (autoSpeedElement) autoSpeedElement.innerText = (message.auto_speed || 0).toFixed(2);
+          const freqElement = document.getElementById("averageSendingPerMinute");
+          if (freqElement) freqElement.innerText = (message.set_frequency || 0);
+          const countElement = document.getElementById("autoMessagesCount");
+          if (countElement) countElement.innerText = (message.auto_messages || 0);
+        }
+        break;
       default:
           console.log("No event", event, data);
     }

@@ -84,6 +84,16 @@ class Shift(models.Model):
         self.update_speed()
         self.save()
 
+    def add_action(self, action_type, description, details=None):
+        """Добавляет действие в лог смены"""
+        from .models import ShiftLog
+        ShiftLog.objects.create(
+            shift=self,
+            action_type=action_type,
+            description=description,
+            details=details
+        )
+
     def finish(self):
         """Завершает смену и рассчитывает финальную статистику"""
         if self.is_active:

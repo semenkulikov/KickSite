@@ -1,30 +1,261 @@
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
-from django.contrib.auth import get_user_model
+from .models import KickAccount, KickAccountAssignment, StreamerStatus, AutoResponse, StreamerMessage, HydraBotSettings, StreamerHydraSettings
+from ProxyApp.models import Proxy
 from django import forms
+from django.urls import path
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from django.urls import path
-from .models import KickAccount, KickAccountAssignment, StreamerStatus, AutoResponse, StreamerMessage, HydraBotSettings
-import logging
+from django.db import models
+import json
+from django.contrib.auth import get_user_model
+from django.contrib.admin import SimpleListFilter
+import threading
 
-logger = logging.getLogger(__name__)
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
 
-User = get_user_model()
+class MultipleFileField(forms.FileField):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("widget", MultipleFileInput())
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        single_file_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            result = [single_file_clean(d, initial) for d in data]
+        else:
+            result = single_file_clean(data, initial)
+        return result
 
 class MassImportForm(forms.Form):
-    """Форма для массового импорта аккаунтов"""
-    accounts_data = forms.CharField(
-        widget=forms.Textarea(attrs={'rows': 10, 'cols': 50}),
-        label='Данные аккаунтов',
-        help_text='Введите данные аккаунтов в формате: логин|токен|сессионный_токен (каждый аккаунт с новой строки)'
-    )
+    files = MultipleFileField(label='Файлы аккаунтов (JSON)', required=True)
     assign_to_user = forms.ModelChoiceField(
-        queryset=User.objects.all(),
+        queryset=get_user_model().objects.filter(is_active=True).order_by('username'),
+        label='Привязать к пользователю (необязательно)',
         required=False,
-        label='Назначить пользователю',
-        help_text='Выберите пользователя, которому будут назначены все импортированные аккаунты'
+        empty_label="Не привязывать к пользователю",
+        help_text='Если выбран пользователь, все импортируемые аккаунты будут привязаны к нему'
     )
+
+class MassProxyUpdateForm(forms.Form):
+    proxy_file = forms.FileField(label='Файл с прокси (по одной на строку)', required=True)
+
+def normalize_proxy_url(proxy_str):
+    if proxy_str.startswith('socks5://'):
+        return proxy_str
+    parts = proxy_str.split(':')
+    if len(parts) == 4:
+        host, port, user, pwd = parts
+        return f'socks5://{user}:{pwd}@{host}:{port}'
+    elif len(parts) == 2:
+        host, port = parts
+        return f'socks5://{host}:{port}'
+    else:
+        return proxy_str  # fallback, возможно уже валидный
+
+class KickAccountAdmin(admin.ModelAdmin):
+    list_display = ('login', 'owner', 'proxy', 'status', 'created', 'updated', 'assigned_users_count')
+    search_fields = ('login',)
+    list_filter = ('status', 'proxy')
+    change_list_template = "admin/KickApp/kickaccount/change_list.html"
+    actions = ['mass_proxy_update_action']
+    
+    def assigned_users_count(self, obj):
+        """Количество назначенных пользователей"""
+        return obj.assigned_users.count()
+    assigned_users_count.short_description = 'Назначено пользователей'
+    
+    def get_queryset(self, request):
+        """Фильтруем аккаунты в зависимости от роли пользователя"""
+        qs = super().get_queryset(request)
+        
+        # Супер админ видит все
+        if request.user.is_superuser or request.user.is_super_admin:
+            return qs
+        
+        # Обычные админы видят все аккаунты
+        if request.user.is_admin:
+            return qs
+        
+        # Обычные пользователи не имеют доступа к админке (блокируется middleware)
+        return qs.none()
+    
+    def mass_proxy_update_action(self, request, queryset):
+        # Перенаправляем на страницу массового обновления прокси
+        selected_ids = list(queryset.values_list('id', flat=True))
+        request.session['selected_account_ids'] = selected_ids
+        return redirect('mass_proxy_update/')
+    
+    mass_proxy_update_action.short_description = "Заменить прокси для выбранных аккаунтов"
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('bulk-import/', self.admin_site.admin_view(self.mass_import_view), name='kickaccount_mass_import'),
+            path('mass_proxy_update/', self.admin_site.admin_view(self.mass_proxy_update_view), name='kickaccount_mass_proxy_update'),
+        ]
+        return custom_urls + urls
+
+    def mass_import_view(self, request):
+        if request.method == 'POST':
+            form = MassImportForm(request.POST, request.FILES)
+            if form.is_valid():
+                files = form.cleaned_data['files']
+                assign_to_user = form.cleaned_data['assign_to_user']
+                imported, errors = 0, []
+                assigned_count = 0
+                
+                for f in files:
+                    try:
+                        login = f.name.split('.')[0]
+                        data = json.loads(f.read().decode('utf-8'))
+                        token = data.get('authorization', '').replace('Bearer ', '')
+                        session_token = None
+                        cookies = data.get('cookie', '')
+                        for part in cookies.split(';'):
+                            if 'kick_session=' in part:
+                                session_token = part.split('kick_session=')[1].strip()
+                        proxy_obj = None
+                        proxy_str = data.get('proxy', '')
+                        if proxy_str:
+                            proxy_url = normalize_proxy_url(proxy_str)
+                            proxy_obj, _ = Proxy.objects.get_or_create(url=proxy_url)
+                        
+                        # Создаем или обновляем аккаунт
+                        account, created = KickAccount.objects.update_or_create(
+                            login=login,
+                            defaults={
+                                'token': token,
+                                'session_token': session_token,
+                                'proxy': proxy_obj,
+                                'owner': request.user,
+                            }
+                        )
+                        
+                        # Если выбран пользователь для привязки
+                        if assign_to_user and account not in assign_to_user.assigned_kick_accounts.all():
+                            # Создаем назначение аккаунта пользователю
+                            KickAccountAssignment.objects.get_or_create(
+                                kick_account=account,
+                                user=assign_to_user,
+                                defaults={
+                                    'assigned_by': request.user,
+                                    'assignment_type': 'admin_assigned',
+                                    'is_active': True,
+                                }
+                            )
+                            assigned_count += 1
+                        
+                        imported += 1
+                    except Exception as e:
+                        errors.append(f"{f.name}: {str(e)}")
+                
+                # Формируем сообщения о результатах
+                if imported:
+                    messages.success(request, f"Импортировано аккаунтов: {imported}")
+                    if assigned_count > 0:
+                        messages.success(request, f"Привязано к пользователю '{assign_to_user.username}': {assigned_count}")
+                if errors:
+                    messages.error(request, "Ошибки импорта: " + "; ".join(errors))
+                return redirect('..')
+        else:
+            form = MassImportForm()
+        context = self.admin_site.each_context(request)
+        context['opts'] = self.model._meta
+        context['form'] = form
+        return render(request, 'admin/KickApp/kickaccount/mass_import.html', context)
+
+    def mass_proxy_update_view(self, request):
+        if request.method == 'POST':
+            # Проверяем, есть ли файл с прокси
+            if 'proxy_file' in request.FILES:
+                form = MassProxyUpdateForm(request.POST, request.FILES)
+                if form.is_valid():
+                    proxy_file = form.cleaned_data['proxy_file']
+                    
+                    # Читаем прокси из файла
+                    proxy_lines = []
+                    try:
+                        content = proxy_file.read().decode('utf-8')
+                        proxy_lines = [line.strip() for line in content.split('\n') if line.strip()]
+                    except Exception as e:
+                        messages.error(request, f"Ошибка чтения файла: {str(e)}")
+                        return redirect('..')
+                    
+                    # Получаем выбранные аккаунты из сессии
+                    selected_account_ids = request.session.get('selected_account_ids', [])
+                    if not selected_account_ids:
+                        messages.error(request, "Не выбрано ни одного аккаунта")
+                        return redirect('..')
+                    
+                    # Получаем аккаунты из базы
+                    accounts = KickAccount.objects.filter(id__in=selected_account_ids)
+                    accounts_count = accounts.count()
+                    proxies_count = len(proxy_lines)
+                    
+                    # Обновляем прокси
+                    updated_count = 0
+                    not_updated_accounts = []
+                    unused_proxies = []
+                    
+                    for i, account in enumerate(accounts):
+                        if i < len(proxy_lines):
+                            proxy_str = proxy_lines[i]
+                            proxy_url = normalize_proxy_url(proxy_str)
+                            
+                            # Создаем или получаем прокси
+                            proxy_obj, created = Proxy.objects.get_or_create(url=proxy_url)
+                            
+                            # Обновляем аккаунт
+                            account.proxy = proxy_obj
+                            account.save()
+                            updated_count += 1
+                        else:
+                            not_updated_accounts.append(account.login)
+                    
+                    # Проверяем неиспользованные прокси
+                    if proxies_count > accounts_count:
+                        unused_proxies = proxy_lines[accounts_count:]
+                    
+                    # Формируем сообщения
+                    if updated_count > 0:
+                        messages.success(request, f"Обновлено прокси для {updated_count} аккаунтов")
+                    
+                    if not_updated_accounts:
+                        messages.warning(request, f"Не хватило прокси для аккаунтов: {', '.join(not_updated_accounts)}")
+                    
+                    if unused_proxies:
+                        messages.info(request, f"Неиспользованные прокси ({len(unused_proxies)}): {', '.join(unused_proxies[:10])}{'...' if len(unused_proxies) > 10 else ''}")
+                    
+                    # Очищаем сессию
+                    if 'selected_account_ids' in request.session:
+                        del request.session['selected_account_ids']
+                    
+                    return redirect('..')
+            else:
+                # Обрабатываем выбор аккаунтов
+                selected_accounts = request.POST.getlist('_selected_action')
+                if selected_accounts:
+                    request.session['selected_account_ids'] = selected_accounts
+                    form = MassProxyUpdateForm()
+                else:
+                    messages.error(request, "Не выбрано ни одного аккаунта")
+                    return redirect('..')
+        else:
+            form = MassProxyUpdateForm()
+        
+        context = self.admin_site.each_context(request)
+        context['opts'] = self.model._meta
+        context['form'] = form
+        
+        # Добавляем информацию о выбранных аккаунтах
+        selected_account_ids = request.session.get('selected_account_ids', [])
+        if selected_account_ids:
+            selected_accounts = KickAccount.objects.filter(id__in=selected_account_ids)
+            context['selected_accounts'] = selected_accounts
+            context['selected_count'] = selected_accounts.count()
+        
+        return render(request, 'admin/kickaccount_mass_proxy_update.html', context)
 
 class HydraBotSettingsForm(forms.ModelForm):
     """Форма для настроек бота "Гидра" """
@@ -40,90 +271,180 @@ class HydraBotSettingsForm(forms.ModelForm):
             'min_message_interval': forms.NumberInput(attrs={'class': 'form-control', 'min': 60, 'max': 3600}),
         }
 
-@admin.register(KickAccount)
-class KickAccountAdmin(admin.ModelAdmin):
-    list_display = ['login', 'status', 'owner', 'proxy', 'created']
-    list_filter = ['status', 'created', 'owner']
-    search_fields = ['login']
-    readonly_fields = ['created', 'updated']
+class HydraEnabledFilter(SimpleListFilter):
+    """Фильтр для отображения стримеров в гидре"""
+    title = 'Статус в Гидре'
+    parameter_name = 'hydra_status'
+    
+    def lookups(self, request, model_admin):
+        return (
+            ('enabled', 'Включен в Гидре'),
+            ('disabled', 'Отключен в Гидре'),
+        )
+    
+    def queryset(self, request, queryset):
+        if self.value() == 'enabled':
+            return queryset.filter(is_hydra_enabled=True)
+        if self.value() == 'disabled':
+            return queryset.filter(is_hydra_enabled=False)
+
+class StreamerHydraSettingsInline(admin.TabularInline):
+    """Инлайн для настроек Гидры стримера"""
+    model = StreamerHydraSettings
+    extra = 0
+    fields = ['is_active', 'message_interval', 'cycle_interval']
+    readonly_fields = ['created_at', 'updated_at']
+
+@admin.register(StreamerStatus)
+class StreamerStatusAdmin(admin.ModelAdmin):
+    list_display = ['vid', 'status', 'last_updated', 'is_hydra_enabled', 'assigned_user']
+    list_filter = ['status', 'is_hydra_enabled', HydraEnabledFilter]
+    search_fields = ['vid']
+    readonly_fields = ['last_updated']
+    inlines = [StreamerHydraSettingsInline]
+    
+    def save_model(self, request, obj, form, change):
+        """Принудительно обновляем индивидуальные настройки при изменении is_hydra_enabled"""
+        super().save_model(request, obj, form, change)
+        
+        # Принудительно обновляем индивидуальные настройки
+        try:
+            from .models import StreamerHydraSettings
+            hydra_settings, created = StreamerHydraSettings.objects.get_or_create(
+                streamer=obj,
+                defaults={
+                    'is_active': obj.is_hydra_enabled,
+                    'message_interval': None,
+                    'cycle_interval': None,
+                }
+            )
+            
+            if not created:
+                hydra_settings.is_active = obj.is_hydra_enabled
+                hydra_settings.save(update_fields=['is_active'])
+            
+            print(f"🔄 Принудительно обновлены настройки Гидры для стримера {obj.vid}: is_active={obj.is_hydra_enabled}")
+            
+        except Exception as e:
+            print(f"❌ Ошибка принудительного обновления настроек Гидры для стримера {obj.vid}: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        actions['enable_hydra'] = (self.enable_hydra_action, 'enable_hydra', "Включить в гидру")
+        actions['disable_hydra'] = (self.disable_hydra_action, 'disable_hydra', "Отключить от гидры")
+        return actions
+    
+    def enable_hydra_action(self, modeladmin, request, queryset):
+        """Включить выбранных стримеров в гидру"""
+        updated = queryset.update(is_hydra_enabled=True)
+        
+        # Принудительно обновляем индивидуальные настройки
+        for streamer in queryset:
+            try:
+                from .models import StreamerHydraSettings
+                hydra_settings, created = StreamerHydraSettings.objects.get_or_create(
+                    streamer=streamer,
+                    defaults={
+                        'is_active': True,
+                        'message_interval': None,
+                        'cycle_interval': None,
+                    }
+                )
+                
+                if not created:
+                    hydra_settings.is_active = True
+                    hydra_settings.save(update_fields=['is_active'])
+                
+                print(f"🔄 Принудительно обновлены настройки Гидры для стримера {streamer.vid}: is_active=True")
+                
+            except Exception as e:
+                print(f"❌ Ошибка принудительного обновления настроек Гидры для стримера {streamer.vid}: {e}")
+        
+        self.message_user(request, f"Включено в гидру: {updated} стримеров")
+    enable_hydra_action.short_description = "Включить в гидру"
+    
+    def disable_hydra_action(self, modeladmin, request, queryset):
+        """Отключить выбранных стримеров от гидры"""
+        updated = queryset.update(is_hydra_enabled=False)
+        
+        # Принудительно обновляем индивидуальные настройки
+        for streamer in queryset:
+            try:
+                from .models import StreamerHydraSettings
+                hydra_settings, created = StreamerHydraSettings.objects.get_or_create(
+                    streamer=streamer,
+                    defaults={
+                        'is_active': False,
+                        'message_interval': None,
+                        'cycle_interval': None,
+                    }
+                )
+                
+                if not created:
+                    hydra_settings.is_active = False
+                    hydra_settings.save(update_fields=['is_active'])
+                
+                print(f"🔄 Принудительно обновлены настройки Гидры для стримера {streamer.vid}: is_active=False")
+                
+            except Exception as e:
+                print(f"❌ Ошибка принудительного обновления настроек Гидры для стримера {streamer.vid}: {e}")
+        
+        self.message_user(request, f"Отключено от гидры: {updated} стримеров")
+    disable_hydra_action.short_description = "Отключить от гидры"
+
+@admin.register(StreamerMessage)
+class StreamerMessageAdmin(admin.ModelAdmin):
+    list_display = ['streamer', 'message_short', 'is_active', 'created_at', 'last_sent']
+    list_filter = ['is_active', 'created_at', 'streamer']
+    search_fields = ['message', 'streamer__vid']
+    readonly_fields = ['created_at', 'last_sent']
+    
+    def message_short(self, obj):
+        return obj.message[:50] + '...' if len(obj.message) > 50 else obj.message
+    message_short.short_description = 'Сообщение'
+
+@admin.register(AutoResponse)
+class AutoResponseAdmin(admin.ModelAdmin):
+    list_display = ['streamer_vid', 'response_type', 'message_short', 'is_active', 'priority']
+    list_filter = ['response_type', 'is_active', 'priority']
+    search_fields = ['streamer_vid', 'message']
+    
+    def message_short(self, obj):
+        return obj.message[:50] + '...' if len(obj.message) > 50 else obj.message
+    message_short.short_description = 'Сообщение'
+
+@admin.register(KickAccountAssignment)
+class KickAccountAssignmentAdmin(admin.ModelAdmin):
+    list_display = ['kick_account', 'user', 'assigned_by', 'assignment_type', 'is_active', 'assigned_at']
+    list_filter = ['assignment_type', 'is_active', 'assigned_at']
+    search_fields = ['kick_account__login', 'user__username']
+    readonly_fields = ['assigned_at']
+
+@admin.register(StreamerHydraSettings)
+class StreamerHydraSettingsAdmin(admin.ModelAdmin):
+    list_display = ['streamer', 'is_active', 'message_interval', 'cycle_interval', 'created_at']
+    list_filter = ['is_active', 'created_at']
+    search_fields = ['streamer__vid']
+    readonly_fields = ['created_at', 'updated_at']
+    
+    fieldsets = (
+        ('Основные настройки', {
+            'fields': ('streamer', 'is_active')
+        }),
+        ('Интервалы', {
+            'fields': ('message_interval', 'cycle_interval'),
+            'description': 'Оставьте пустым для использования глобальных настроек Гидры'
+        }),
+        ('Системная информация', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
     
     def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        return qs.select_related('owner', 'proxy')
-    
-    def get_urls(self):
-        urls = super().get_urls()
-        custom_urls = [
-            path('mass-import/', self.mass_import_view, name='kickaccount_mass_import'),
-        ]
-        return custom_urls + urls
-    
-    def mass_import_view(self, request):
-        """Представление для массового импорта аккаунтов"""
-        if not request.user.is_superuser:
-            messages.error(request, 'Доступ только для супер-администраторов')
-            return redirect('admin:index')
-        
-        if request.method == 'POST':
-            form = MassImportForm(request.POST)
-            if form.is_valid():
-                accounts_data = form.cleaned_data['accounts_data']
-                assign_to_user = form.cleaned_data['assign_to_user']
-                
-                # Обрабатываем данные аккаунтов
-                lines = accounts_data.strip().split('\n')
-                created_count = 0
-                errors = []
-                
-                for line_num, line in enumerate(lines, 1):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    
-                    try:
-                        parts = line.split('|')
-                        if len(parts) >= 2:
-                            login = parts[0].strip()
-                            token = parts[1].strip()
-                            session_token = parts[2].strip() if len(parts) > 2 else ''
-                            
-                            # Проверяем, не существует ли уже аккаунт
-                            if KickAccount.objects.filter(login=login).exists():
-                                errors.append(f"Строка {line_num}: Аккаунт {login} уже существует")
-                                continue
-                            
-                            # Создаем аккаунт
-                            account = KickAccount.objects.create(
-                                login=login,
-                                token=token,
-                                session_token=session_token,
-                                owner=assign_to_user or request.user,
-                                status='active'
-                            )
-                            
-                            created_count += 1
-                        else:
-                            errors.append(f"Строка {line_num}: Неверный формат данных")
-                    except Exception as e:
-                        errors.append(f"Строка {line_num}: Ошибка - {str(e)}")
-                
-                if created_count > 0:
-                    messages.success(request, f'Успешно импортировано {created_count} аккаунтов')
-                
-                if errors:
-                    for error in errors:
-                        messages.warning(request, error)
-                
-                return redirect('admin:KickApp_kickaccount_changelist')
-        else:
-            form = MassImportForm()
-        
-        context = {
-            'form': form,
-            'title': 'Массовый импорт аккаунтов',
-            'opts': self.model._meta,
-        }
-        return render(request, 'admin/KickApp/kickaccount/mass_import.html', context)
+        return super().get_queryset(request).select_related('streamer')
 
 @admin.register(HydraBotSettings)
 class HydraBotSettingsAdmin(admin.ModelAdmin):
@@ -182,37 +503,5 @@ class HydraBotSettingsAdmin(admin.ModelAdmin):
         }
         return render(request, 'admin/hydra_dashboard.html', context)
 
-@admin.register(StreamerStatus)
-class StreamerStatusAdmin(admin.ModelAdmin):
-    list_display = ['vid', 'status', 'assigned_user', 'last_updated']
-    list_filter = ['status', 'last_updated']
-    search_fields = ['vid']
-    readonly_fields = ['last_updated']
-
-@admin.register(StreamerMessage)
-class StreamerMessageAdmin(admin.ModelAdmin):
-    list_display = ['streamer', 'message_short', 'is_active', 'created_at', 'last_sent']
-    list_filter = ['is_active', 'created_at', 'streamer']
-    search_fields = ['message', 'streamer__vid']
-    readonly_fields = ['created_at', 'last_sent']
-    
-    def message_short(self, obj):
-        return obj.message[:50] + '...' if len(obj.message) > 50 else obj.message
-    message_short.short_description = 'Сообщение'
-
-@admin.register(AutoResponse)
-class AutoResponseAdmin(admin.ModelAdmin):
-    list_display = ['streamer_vid', 'response_type', 'message_short', 'is_active', 'priority']
-    list_filter = ['response_type', 'is_active', 'priority']
-    search_fields = ['streamer_vid', 'message']
-    
-    def message_short(self, obj):
-        return obj.message[:50] + '...' if len(obj.message) > 50 else obj.message
-    message_short.short_description = 'Сообщение'
-
-@admin.register(KickAccountAssignment)
-class KickAccountAssignmentAdmin(admin.ModelAdmin):
-    list_display = ['kick_account', 'user', 'assigned_by', 'assignment_type', 'is_active', 'assigned_at']
-    list_filter = ['assignment_type', 'is_active', 'assigned_at']
-    search_fields = ['kick_account__login', 'user__username']
-    readonly_fields = ['assigned_at']
+# Регистрируем только KickAccount в стандартной админке
+admin.site.register(KickAccount, KickAccountAdmin)

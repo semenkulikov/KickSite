@@ -9,7 +9,7 @@ import asyncio
 import json
 from datetime import datetime, timedelta
 from django.utils import timezone
-from django.contrib.auth import get_user_model
+from ServiceApp.models import User  # Используем кастомную модель пользователя
 from asgiref.sync import sync_to_async
 from .models import StreamerStatus, AutoResponse, StreamerMessage
 from dotenv import load_dotenv
@@ -21,8 +21,6 @@ logger = logging.getLogger(__name__)
 
 # Загружаем переменные окружения
 load_dotenv()
-
-User = get_user_model()
 
 class SupabaseSyncService:
     """
@@ -45,9 +43,9 @@ class SupabaseSyncService:
     
     async def _get_session(self):
         """Получает или создает aiohttp сессию"""
-        if self.session is None or self.session.closed:
-            timeout = aiohttp.ClientTimeout(total=30)
-            self.session = aiohttp.ClientSession(timeout=timeout, headers=self.headers)
+        if not self.session or self.session.closed:
+            timeout = aiohttp.ClientTimeout(total=30, connect=10)
+            self.session = aiohttp.ClientSession(timeout=timeout)
         return self.session
     
     async def get_active_streamers_async(self):
@@ -64,17 +62,32 @@ class SupabaseSyncService:
                 "limit": "100"
             }
             
-            async with session.get(url, params=params) as response:
+            logger.info(f"🔍 Запрос к Supabase: {url}")
+            logger.info(f"🔍 Headers: {self.headers}")
+            logger.info(f"🔍 Params: {params}")
+            
+            async with session.get(url, params=params, headers=self.headers) as response:
+                logger.info(f"🔍 Ответ от Supabase: {response.status}")
+                
                 if response.status == 200:
                     data = await response.json()
-                    logger.info(f"Получено {len(data)} активных стримеров из Supabase")
+                    logger.info(f"✅ Получено {len(data)} активных стримеров из Supabase")
                     return data
+                elif response.status == 401:
+                    logger.error(f"❌ Ошибка 401: Неверный API ключ или URL для Supabase")
+                    logger.error(f"❌ URL: {self.supabase_url}")
+                    logger.error(f"❌ API Key: {self.supabase_key[:10]}...")
+                    return []
                 else:
-                    logger.error(f"Ошибка получения данных из Supabase: {response.status}")
+                    error_text = await response.text()
+                    logger.error(f"❌ Ошибка получения данных из Supabase: {response.status}")
+                    logger.error(f"❌ Ответ: {error_text}")
                     return []
                 
         except Exception as e:
-            logger.error(f"Ошибка подключения к Supabase: {e}")
+            logger.error(f"❌ Ошибка подключения к Supabase: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     async def sync_streamer_statuses_async(self):
@@ -113,6 +126,9 @@ class SupabaseSyncService:
                     streamer.last_updated = timezone.now()
                     await sync_to_async(streamer.save)()
                 
+                # Обновляем индивидуальные настройки стримера
+                await self._update_streamer_hydra_settings_async(streamer)
+                
                 updated_count += 1
             
             # Помечаем неактивные стримеры
@@ -121,12 +137,46 @@ class SupabaseSyncService:
                 if streamer.vid not in active_vids and streamer.status == 'active':
                     streamer.status = 'inactive'
                     await sync_to_async(streamer.save)()
+                    
+                    # Отключаем индивидуальные настройки для неактивных стримеров
+                    await self._update_streamer_hydra_settings_async(streamer, is_active=False)
+                    
                     inactive_count += 1
             
             logger.info(f"📊 Синхронизация стримеров: {updated_count} активных, {inactive_count} неактивных")
             
         except Exception as e:
             logger.error(f"Ошибка синхронизации статусов стримеров: {e}")
+    
+    async def _update_streamer_hydra_settings_async(self, streamer, is_active=None):
+        """
+        Обновляет индивидуальные настройки Гидры для стримера
+        """
+        try:
+            from .models import StreamerHydraSettings
+            
+            # Определяем статус активности
+            if is_active is None:
+                is_active = streamer.status == 'active' and streamer.is_hydra_enabled
+            
+            # Получаем или создаем индивидуальные настройки
+            hydra_settings, created = await sync_to_async(StreamerHydraSettings.objects.get_or_create)(
+                streamer=streamer,
+                defaults={
+                    'is_active': is_active,
+                    'message_interval': None,
+                    'cycle_interval': None,
+                }
+            )
+            
+            # Обновляем статус активности
+            if not created or hydra_settings.is_active != is_active:
+                hydra_settings.is_active = is_active
+                await sync_to_async(hydra_settings.save)(update_fields=['is_active'])
+                logger.info(f"🔄 Обновлены настройки Гидры для стримера {streamer.vid}: is_active={is_active}")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка обновления настроек Гидры для стримера {streamer.vid}: {e}")
     
     async def assign_users_to_streamers_async(self):
         """
@@ -219,17 +269,22 @@ class SupabaseSyncService:
                 "select": "vid,message"
             }
             
-            async with session.get(url, params=params) as response:
+            logger.info(f"🔍 Запрос сообщений для стримера {vid}: {url}")
+            
+            async with session.get(url, params=params, headers=self.headers) as response:
                 if response.status == 200:
                     data = await response.json()
+                    logger.info(f"✅ Получено {len(data)} сообщений для стримера {vid}")
                     return data
                 else:
                     error_text = await response.text()
-                    logger.error(f"Ошибка получения сообщений для {vid}: HTTP {response.status} - {error_text}")
+                    logger.error(f"❌ Ошибка получения сообщений для {vid}: HTTP {response.status} - {error_text}")
                     return []
                 
         except Exception as e:
-            logger.error(f"Ошибка получения сообщений для {vid}: {str(e)}")
+            logger.error(f"❌ Ошибка получения сообщений для {vid}: {str(e)}")
+            import traceback
+            logger.error(f"🔍 Детали ошибки: {traceback.format_exc()}")
             return []
     
     async def sync_streamer_messages_async(self):
@@ -240,6 +295,8 @@ class SupabaseSyncService:
             # Получаем активных стримеров
             active_streamers = await sync_to_async(list)(StreamerStatus.objects.filter(status='active'))
             
+            logger.info(f"🔄 Начинаем синхронизацию сообщений для {len(active_streamers)} активных стримеров")
+            
             total_messages = 0
             inactive_count = 0
             
@@ -249,6 +306,7 @@ class SupabaseSyncService:
                 
                 # Получаем vid стримера
                 streamer_vid = await sync_to_async(lambda: streamer.vid)()
+                logger.info(f"📝 Обрабатываем стримера: {streamer_vid}")
                 
                 # Получаем сообщения для стримера
                 messages_data = await self.get_messages_for_streamer_async(streamer_vid)
@@ -281,9 +339,13 @@ class SupabaseSyncService:
             
             if total_messages > 0 or inactive_count > 0:
                 logger.info(f"💬 Синхронизация сообщений: {len(active_streamers)} стримеров, {total_messages} сообщений, {inactive_count} деактивировано")
+            else:
+                logger.info(f"💬 Синхронизация сообщений завершена: {len(active_streamers)} стримеров обработано")
             
         except Exception as e:
-            logger.error(f"Ошибка синхронизации сообщений стримеров: {e}")
+            logger.error(f"❌ Ошибка синхронизации сообщений стримеров: {e}")
+            import traceback
+            logger.error(f"🔍 Детали ошибки: {traceback.format_exc()}")
     
     async def cleanup(self):
         """Очищает ресурсы"""

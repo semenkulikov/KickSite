@@ -343,6 +343,9 @@ class StreamerStatus(models.Model):
     assigned_user = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL, null=True, blank=True, 
                                     verbose_name='Назначенный пользователь')
     
+    is_hydra_enabled = models.BooleanField(default=False, verbose_name='Включен в Гидре', 
+                                         help_text='Отправляется ли рассылка для этого стримера')
+    
     class Meta:
         verbose_name = 'Статус стримера'
         verbose_name_plural = 'Статусы стримеров'
@@ -452,36 +455,42 @@ class HydraBotSettings(models.Model):
         )
         return settings
 
-@receiver(post_save, sender=HydraBotSettings)
-def restart_hydra_on_settings_change(sender, instance, created, **kwargs):
-    """
-    Перезапускает бота "Гидра" при изменении настроек
-    """
-    # Не срабатываем при создании новой записи
-    if created:
-        return
-        
-    try:
-        # Импортируем здесь чтобы избежать циклических импортов
-        from .auto_message_sender import restart_auto_messaging
-        
-        # Запускаем перезапуск в отдельном потоке
-        def restart_in_thread():
-            import time
-            time.sleep(2)  # Небольшая пауза для применения изменений
-            
-            # Проверяем актуальные настройки из базы данных
-            instance.refresh_from_db()
-            
-            if instance.is_enabled:
-                print("🚀 Включаем бота Гидру...")
-                restart_auto_messaging()
-            else:
-                print("🛑 Отключаем бота Гидру...")
-                from .auto_message_sender import stop_auto_messaging
-                stop_auto_messaging()
-        
-        threading.Thread(target=restart_in_thread, daemon=True).start()
-        
-    except Exception as e:
-        print(f"Ошибка перезапуска Гидры: {e}")
+class StreamerHydraSettings(models.Model):
+    """Индивидуальные настройки Гидры для стримера"""
+    streamer = models.OneToOneField(StreamerStatus, on_delete=models.CASCADE, related_name='hydra_settings', 
+                                   verbose_name='Стример')
+    
+    # Настройки интервалов (если None, используются глобальные)
+    message_interval = models.IntegerField(null=True, blank=True, verbose_name='Интервал между сообщениями (сек)',
+                                         help_text='Оставьте пустым для использования глобальных настроек')
+    cycle_interval = models.IntegerField(null=True, blank=True, verbose_name='Интервал между циклами (сек)',
+                                       help_text='Оставьте пустым для использования глобальных настроек')
+    
+    # Дополнительные настройки
+    is_active = models.BooleanField(default=True, verbose_name='Активен',
+                                   help_text='Включена ли рассылка для этого стримера')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Создан')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Обновлен')
+    
+    class Meta:
+        verbose_name = 'Настройки Гидры для стримера'
+        verbose_name_plural = 'Настройки Гидры для стримеров'
+    
+    def __str__(self):
+        return f"Настройки Гидры для {self.streamer.vid}"
+    
+    def get_message_interval(self):
+        """Возвращает интервал между сообщениями (индивидуальный или глобальный)"""
+        if self.message_interval is not None:
+            return self.message_interval
+        # Возвращаем глобальные настройки
+        settings = HydraBotSettings.get_settings()
+        return settings.message_interval
+    
+    def get_cycle_interval(self):
+        """Возвращает интервал между циклами (индивидуальный или глобальный)"""
+        if self.cycle_interval is not None:
+            return self.cycle_interval
+        # Возвращаем глобальные настройки
+        settings = HydraBotSettings.get_settings()
+        return settings.cycle_interval

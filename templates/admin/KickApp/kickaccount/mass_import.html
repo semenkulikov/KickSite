@@ -1,0 +1,44 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content %}
+  <div style="max-width: 600px; margin: 40px auto;">
+    <div class="card" style="padding: 2em; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-radius: 12px; background: #23272f;">
+      <h2 style="margin-bottom: 1.5em; text-align: center;">Массовый импорт аккаунтов Kick</h2>
+      <form method="post" enctype="multipart/form-data" style="margin-bottom:2em;">
+        {% csrf_token %}
+        <div class="form-group" style="margin-bottom: 1.5em;">
+          <label for="id_files" style="font-weight: 600;">Файлы аккаунтов (JSON):</label><br>
+          <input type="file" name="files" id="id_files" multiple required style="padding: 0.5em; border-radius: 6px; border: 1px solid #444; background: #181a1b; color: #fff; width: 100%; margin-top: 0.5em;">
+        </div>
+        
+        <div class="form-group" style="margin-bottom: 1.5em;">
+          <label for="id_assign_to_user" style="font-weight: 600;">Привязать к пользователю:</label><br>
+          <select name="assign_to_user" id="id_assign_to_user" style="padding: 0.5em; border-radius: 6px; border: 1px solid #444; background: #181a1b; color: #fff; width: 100%; margin-top: 0.5em;">
+            <option value="">Не привязывать к пользователю</option>
+            {% for user in form.assign_to_user.field.queryset %}
+              <option value="{{ user.id }}">{{ user.username }} ({{ user.get_full_name|default:user.email }})</option>
+            {% endfor %}
+          </select>
+          <small style="color: #888; font-size: 0.9em; margin-top: 0.5em; display: block;">
+            Если выбран пользователь, все импортируемые аккаунты будут привязаны к нему
+          </small>
+        </div>
+        
+        <div style="display: flex; gap: 1em; justify-content: center;">
+          <button type="submit" class="button btn btn-primary" style="min-width: 140px; font-weight: 600;">
+            <span class="icon-upload"></span> Импортировать
+          </button>
+          <a href="../" class="button btn btn-secondary" style="min-width: 120px; font-weight: 600;">Назад</a>
+        </div>
+      </form>
+      {% if messages %}
+        <ul class="messagelist">
+          {% for message in messages %}
+            <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %} 
