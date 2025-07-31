@@ -258,10 +258,11 @@ class SupabaseSyncService:
             accounts_assigned = 0
             for account in available_accounts:
                 assignment, created = await sync_to_async(KickAccountAssignment.objects.get_or_create)(
-                    account=account,
+                    kick_account=account,
                     user=user,
                     defaults={
-                        'assignment_type': 'auto'
+                        'assignment_type': 'auto',
+                        'assigned_by': user
                     }
                 )
                 if created:
