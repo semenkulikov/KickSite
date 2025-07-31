@@ -23,15 +23,14 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         force = options['force']
         
-        # Получаем активных стримеров без назначенных пользователей
+        # Получаем всех стримеров без назначенных пользователей (активных и неактивных)
         streamers_without_users = StreamerStatus.objects.filter(
-            status='active',
             assigned_user__isnull=True
         )
         
         if not streamers_without_users:
             self.stdout.write(
-                self.style.SUCCESS('Все активные стримеры уже имеют назначенных пользователей')
+                self.style.SUCCESS('Все стримеры уже имеют назначенных пользователей')
             )
             return
         

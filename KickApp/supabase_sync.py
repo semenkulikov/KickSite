@@ -181,11 +181,11 @@ class SupabaseSyncService:
                 updated_at = streamer_data['updated_at']
                 
                 # Определяем статус: если статус явно указан в данных, используем его
-                # Если статус пустой, None или 'unknown', считаем стримера неактивным
+                # Если статус пустой, None, 'unknown' или 'offline', считаем стримера неактивным
                 status = streamer_data.get('status', 'unknown')
                 
-                # Если статус пустой, None или 'unknown', считаем стримера неактивным
-                if not status or status == '' or status == 'unknown':
+                # Если статус пустой, None, 'unknown' или 'offline', считаем стримера неактивным
+                if not status or status == '' or status == 'unknown' or status == 'offline':
                     status = 'inactive'
                 
                 # Создаем или обновляем запись
@@ -205,6 +205,10 @@ class SupabaseSyncService:
                     streamer.last_updated = timezone.now()
                     await sync_to_async(streamer.save)()
                 
+                # Назначаем пользователя к стримеру (если еще не назначен)
+                if not streamer.assigned_user:
+                    await self._assign_user_to_streamer_async(streamer)
+                
                 # Обновляем индивидуальные настройки стримера
                 await self._update_streamer_hydra_settings_async(streamer)
                 
@@ -217,6 +221,38 @@ class SupabaseSyncService:
             
         except Exception as e:
             logger.error(f"Ошибка синхронизации статусов стримеров: {e}")
+    
+    async def _assign_user_to_streamer_async(self, streamer):
+        """
+        Назначает пользователя к стримеру (создает нового или использует существующего)
+        """
+        try:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            
+            # Создаем пользователя с именем стримера
+            user, created = await sync_to_async(User.objects.get_or_create)(
+                username=streamer.vid,
+                defaults={
+                    'email': f"{streamer.vid}@auto.local",
+                    'first_name': streamer.vid,
+                    'last_name': 'Streamer'
+                }
+            )
+            
+            if created:
+                logger.info(f"👤 Создан новый пользователь {streamer.vid} для стримера {streamer.vid}")
+            else:
+                logger.info(f"👤 Использован существующий пользователь {streamer.vid} для стримера {streamer.vid}")
+            
+            # Назначаем пользователя к стримеру
+            streamer.assigned_user = user
+            await sync_to_async(streamer.save)()
+            
+            logger.info(f"✅ Назначен пользователь {user.username} к стримеру {streamer.vid}")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка назначения пользователя к стримеру {streamer.vid}: {e}")
     
     async def _update_streamer_hydra_settings_async(self, streamer, is_active=None):
         """

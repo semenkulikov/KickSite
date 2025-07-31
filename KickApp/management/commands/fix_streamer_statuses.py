@@ -1,4 +1,5 @@
 from django.core.management.base import BaseCommand
+from django.db import models
 from KickApp.models import StreamerStatus
 
 class Command(BaseCommand):
@@ -14,27 +15,33 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         dry_run = options['dry_run']
         
-        # Находим стримеров со статусом 'unknown'
-        unknown_streamers = StreamerStatus.objects.filter(status='unknown')
+        # Находим стримеров с пустым статусом, 'unknown' или 'offline'
+        problematic_streamers = StreamerStatus.objects.filter(
+            models.Q(status='') | 
+            models.Q(status__isnull=True) | 
+            models.Q(status='unknown') |
+            models.Q(status='offline')
+        )
         
-        if not unknown_streamers:
+        if not problematic_streamers:
             self.stdout.write(
-                self.style.SUCCESS('Нет стримеров со статусом "unknown"')
+                self.style.SUCCESS('Нет стримеров с проблемными статусами')
             )
             return
         
-        self.stdout.write(f'Найдено {unknown_streamers.count()} стримеров со статусом "unknown"')
+        self.stdout.write(f'Найдено {problematic_streamers.count()} стримеров с проблемными статусами')
         
         if dry_run:
             self.stdout.write('Стримеры которые будут изменены:')
-            for streamer in unknown_streamers:
-                self.stdout.write(f'- {streamer.vid} (статус: {streamer.status})')
+            for streamer in problematic_streamers:
+                current_status = streamer.status or 'пустой'
+                self.stdout.write(f'- {streamer.vid} (статус: {current_status})')
             return
         
         # Обновляем статусы
         updated_count = 0
-        for streamer in unknown_streamers:
-            old_status = streamer.status
+        for streamer in problematic_streamers:
+            old_status = streamer.status or 'пустой'
             streamer.status = 'inactive'
             streamer.save()
             self.stdout.write(
