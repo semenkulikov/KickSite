@@ -249,7 +249,25 @@ class SupabaseSyncService:
             streamer.assigned_user = user
             await sync_to_async(streamer.save)()
             
-            logger.info(f"✅ Назначен пользователь {user.username} к стримеру {streamer.vid}")
+            # Назначаем все доступные Kick аккаунты к этому пользователю
+            available_accounts = await sync_to_async(list)(KickAccount.objects.filter(
+                status='active',
+                assignment__isnull=True  # Аккаунты без назначений
+            ))
+            
+            accounts_assigned = 0
+            for account in available_accounts:
+                assignment, created = await sync_to_async(KickAccountAssignment.objects.get_or_create)(
+                    account=account,
+                    user=user,
+                    defaults={
+                        'assignment_type': 'auto'
+                    }
+                )
+                if created:
+                    accounts_assigned += 1
+            
+            logger.info(f"✅ Назначен пользователь {user.username} к стримеру {streamer.vid} (добавлено {accounts_assigned} аккаунтов)")
             
         except Exception as e:
             logger.error(f"❌ Ошибка назначения пользователя к стримеру {streamer.vid}: {e}")

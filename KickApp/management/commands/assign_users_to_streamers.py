@@ -69,8 +69,26 @@ class Command(BaseCommand):
             streamer.assigned_user = user
             streamer.save()
             
+            # Назначаем все доступные Kick аккаунты к этому пользователю
+            available_accounts = KickAccount.objects.filter(
+                status='active',
+                assignment__isnull=True  # Аккаунты без назначений
+            )
+            
+            accounts_assigned = 0
+            for account in available_accounts:
+                assignment, created = KickAccountAssignment.objects.get_or_create(
+                    account=account,
+                    user=user,
+                    defaults={
+                        'assignment_type': 'auto'
+                    }
+                )
+                if created:
+                    accounts_assigned += 1
+            
             self.stdout.write(
-                self.style.SUCCESS(f'Назначен пользователь {user.username} к стримеру {streamer.vid}')
+                self.style.SUCCESS(f'Назначен пользователь {user.username} к стримеру {streamer.vid} (добавлено {accounts_assigned} аккаунтов)')
             )
             assigned_count += 1
         
