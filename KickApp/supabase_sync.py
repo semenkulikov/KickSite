@@ -48,6 +48,62 @@ class SupabaseSyncService:
             self.session = aiohttp.ClientSession(timeout=timeout)
         return self.session
     
+    async def get_all_streamers_async(self):
+        """
+        Асинхронно получает список ВСЕХ стримеров из Supabase (активных и неактивных)
+        """
+        try:
+            session = await self._get_session()
+            url = f"{self.supabase_url}/rest/v1/stream_status"
+            
+            all_streamers = []
+            offset = 0
+            limit = 1000  # Максимальный лимит Supabase
+            
+            while True:
+                params = {
+                    "select": "order_id,vid,updated_at,status",
+                    "order": "updated_at.desc",
+                    "limit": str(limit),
+                    "offset": str(offset)
+                }
+                
+                logger.info(f"🔍 Запрос к Supabase (offset={offset}): {url}")
+                logger.info(f"🔍 Headers: {self.headers}")
+                logger.info(f"🔍 Params: {params}")
+                
+                async with session.get(url, params=params, headers=self.headers) as response:
+                    logger.info(f"🔍 Ответ от Supabase: {response.status}")
+                    
+                    if response.status == 200:
+                        data = await response.json()
+                        all_streamers.extend(data)
+                        
+                        # Если получили меньше записей чем лимит, значит это последняя страница
+                        if len(data) < limit:
+                            break
+                        
+                        offset += limit
+                    elif response.status == 401:
+                        logger.error(f"❌ Ошибка 401: Неверный API ключ или URL для Supabase")
+                        logger.error(f"❌ URL: {self.supabase_url}")
+                        logger.error(f"❌ API Key: {self.supabase_key[:10]}...")
+                        break
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"❌ Ошибка получения данных из Supabase: {response.status}")
+                        logger.error(f"❌ Ответ: {error_text}")
+                        break
+                
+            logger.info(f"✅ Получено {len(all_streamers)} стримеров из Supabase")
+            return all_streamers
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка подключения к Supabase: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
     async def get_active_streamers_async(self):
         """
         Асинхронно получает список активных стримеров из Supabase
@@ -55,34 +111,49 @@ class SupabaseSyncService:
         try:
             session = await self._get_session()
             url = f"{self.supabase_url}/rest/v1/stream_status"
-            params = {
-                "status": "eq.active",
-                "select": "order_id,vid,updated_at",
-                "order": "updated_at.desc",
-                "limit": "100"
-            }
             
-            logger.info(f"🔍 Запрос к Supabase: {url}")
-            logger.info(f"🔍 Headers: {self.headers}")
-            logger.info(f"🔍 Params: {params}")
+            active_streamers = []
+            offset = 0
+            limit = 1000  # Максимальный лимит Supabase
             
-            async with session.get(url, params=params, headers=self.headers) as response:
-                logger.info(f"🔍 Ответ от Supabase: {response.status}")
+            while True:
+                params = {
+                    "status": "eq.active",
+                    "select": "order_id,vid,updated_at",
+                    "order": "updated_at.desc",
+                    "limit": str(limit),
+                    "offset": str(offset)
+                }
                 
-                if response.status == 200:
-                    data = await response.json()
-                    logger.info(f"✅ Получено {len(data)} активных стримеров из Supabase")
-                    return data
-                elif response.status == 401:
-                    logger.error(f"❌ Ошибка 401: Неверный API ключ или URL для Supabase")
-                    logger.error(f"❌ URL: {self.supabase_url}")
-                    logger.error(f"❌ API Key: {self.supabase_key[:10]}...")
-                    return []
-                else:
-                    error_text = await response.text()
-                    logger.error(f"❌ Ошибка получения данных из Supabase: {response.status}")
-                    logger.error(f"❌ Ответ: {error_text}")
-                    return []
+                logger.info(f"🔍 Запрос к Supabase (offset={offset}): {url}")
+                logger.info(f"🔍 Headers: {self.headers}")
+                logger.info(f"🔍 Params: {params}")
+                
+                async with session.get(url, params=params, headers=self.headers) as response:
+                    logger.info(f"🔍 Ответ от Supabase: {response.status}")
+                    
+                    if response.status == 200:
+                        data = await response.json()
+                        active_streamers.extend(data)
+                        
+                        # Если получили меньше записей чем лимит, значит это последняя страница
+                        if len(data) < limit:
+                            break
+                        
+                        offset += limit
+                    elif response.status == 401:
+                        logger.error(f"❌ Ошибка 401: Неверный API ключ или URL для Supabase")
+                        logger.error(f"❌ URL: {self.supabase_url}")
+                        logger.error(f"❌ API Key: {self.supabase_key[:10]}...")
+                        break
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"❌ Ошибка получения данных из Supabase: {response.status}")
+                        logger.error(f"❌ Ответ: {error_text}")
+                        break
+                
+            logger.info(f"✅ Получено {len(active_streamers)} активных стримеров из Supabase")
+            return active_streamers
                 
         except Exception as e:
             logger.error(f"❌ Ошибка подключения к Supabase: {e}")
@@ -95,25 +166,26 @@ class SupabaseSyncService:
         Асинхронно синхронизирует статусы стримеров с Supabase
         """
         try:
-            active_streamers = await self.get_active_streamers_async()
+            all_streamers = await self.get_all_streamers_async()
             
             # Получаем все существующие записи стримеров
             existing_streamers = {s.vid: s for s in await sync_to_async(list)(StreamerStatus.objects.all())}
             
-            # Обрабатываем активных стримеров
+            # Обрабатываем всех стримеров
             updated_count = 0
             inactive_count = 0
             
-            for streamer_data in active_streamers:
+            for streamer_data in all_streamers:
                 vid = streamer_data['vid']
                 order_id = streamer_data['order_id']
                 updated_at = streamer_data['updated_at']
+                status = streamer_data.get('status', 'active')  # Получаем статус из Supabase
                 
                 # Создаем или обновляем запись
                 streamer, created = await sync_to_async(StreamerStatus.objects.get_or_create)(
                     vid=vid,
                     defaults={
-                        'status': 'active',
+                        'status': status,
                         'order_id': order_id,
                         'last_updated': timezone.now()
                     }
@@ -121,7 +193,7 @@ class SupabaseSyncService:
                 
                 if not created:
                     # Обновляем существующую запись
-                    streamer.status = 'active'
+                    streamer.status = status
                     streamer.order_id = order_id
                     streamer.last_updated = timezone.now()
                     await sync_to_async(streamer.save)()
@@ -129,18 +201,9 @@ class SupabaseSyncService:
                 # Обновляем индивидуальные настройки стримера
                 await self._update_streamer_hydra_settings_async(streamer)
                 
-                updated_count += 1
-            
-            # Помечаем неактивные стримеры
-            active_vids = {s['vid'] for s in active_streamers}
-            for streamer in existing_streamers.values():
-                if streamer.vid not in active_vids and streamer.status == 'active':
-                    streamer.status = 'inactive'
-                    await sync_to_async(streamer.save)()
-                    
-                    # Отключаем индивидуальные настройки для неактивных стримеров
-                    await self._update_streamer_hydra_settings_async(streamer, is_active=False)
-                    
+                if status == 'active':
+                    updated_count += 1
+                else:
                     inactive_count += 1
             
             logger.info(f"📊 Синхронизация стримеров: {updated_count} активных, {inactive_count} неактивных")
@@ -264,22 +327,39 @@ class SupabaseSyncService:
         try:
             session = await self._get_session()
             url = f"{self.supabase_url}/rest/v1/streamer_messages"
-            params = {
-                "vid": f"eq.{vid}",
-                "select": "vid,message"
-            }
             
-            logger.info(f"🔍 Запрос сообщений для стримера {vid}: {url}")
+            all_messages = []
+            offset = 0
+            limit = 1000  # Максимальный лимит Supabase
             
-            async with session.get(url, params=params, headers=self.headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    logger.info(f"✅ Получено {len(data)} сообщений для стримера {vid}")
-                    return data
-                else:
-                    error_text = await response.text()
-                    logger.error(f"❌ Ошибка получения сообщений для {vid}: HTTP {response.status} - {error_text}")
-                    return []
+            while True:
+                params = {
+                    "vid": f"eq.{vid}",
+                    "select": "vid,message",
+                    "order": "created_at.desc",  # Сортируем по дате создания (новые сначала)
+                    "limit": str(limit),
+                    "offset": str(offset)
+                }
+                
+                logger.info(f"🔍 Запрос сообщений для стримера {vid} (offset={offset}): {url}")
+                
+                async with session.get(url, params=params, headers=self.headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        all_messages.extend(data)
+                        
+                        # Если получили меньше записей чем лимит, значит это последняя страница
+                        if len(data) < limit:
+                            break
+                        
+                        offset += limit
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"❌ Ошибка получения сообщений для {vid}: HTTP {response.status} - {error_text}")
+                        break
+                
+            logger.info(f"✅ Получено {len(all_messages)} сообщений для стримера {vid}")
+            return all_messages
                 
         except Exception as e:
             logger.error(f"❌ Ошибка получения сообщений для {vid}: {str(e)}")
@@ -292,7 +372,7 @@ class SupabaseSyncService:
         Асинхронно синхронизирует сообщения стримеров с Supabase
         """
         try:
-            # Получаем активных стримеров
+            # Получаем активных стримеров (только с активным статусом)
             active_streamers = await sync_to_async(list)(StreamerStatus.objects.filter(status='active'))
             
             logger.info(f"🔄 Начинаем синхронизацию сообщений для {len(active_streamers)} активных стримеров")
@@ -312,20 +392,21 @@ class SupabaseSyncService:
                 messages_data = await self.get_messages_for_streamer_async(streamer_vid)
                 
                 if messages_data:
-                    # Синхронизируем сообщения
+                    # Сначала удаляем все старые сообщения для этого стримера
+                    await sync_to_async(streamer.messages.all().delete)()
+                    logger.info(f"🗑️ Удалены старые сообщения для стримера {streamer_vid}")
+                    
+                    # Синхронизируем новые сообщения
                     for message_data in messages_data:
                         message_text = message_data.get('message', '')
                         
                         if message_text:
-                            # Создаем или обновляем сообщение
+                            # Создаем новое сообщение (используем get_or_create для избежания дубликатов)
                             message_obj, created = await sync_to_async(StreamerMessage.objects.get_or_create)(
                                 streamer=streamer,
                                 message=message_text,
-                                defaults={
-                                    'is_active': True
-                                }
+                                defaults={'is_active': True}
                             )
-                            
                             if created:
                                 total_messages += 1
                 

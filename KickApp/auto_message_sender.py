@@ -266,10 +266,11 @@ class AutoMessageSender:
                 
                 print("🔄 Начинаем обработку стримеров в гидре...")
                 
-                # Получаем всех активных стримеров в гидре
+                # Получаем всех активных стримеров в гидре (только с активным статусом)
                 streamers = await sync_to_async(list)(StreamerStatus.objects.filter(
                     is_hydra_enabled=True,
-                    assigned_user__isnull=False
+                    assigned_user__isnull=False,
+                    status='active'  # Добавляем фильтр по статусу
                 ).select_related('assigned_user'))
                 
                 if not streamers:

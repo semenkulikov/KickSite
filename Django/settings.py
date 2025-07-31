@@ -31,6 +31,10 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['127.0.0.1', '0.0.0.0', 'example.com','localhost','5.35.91.173','starkinc.shop', '*']
 
+# Увеличиваем лимиты для обработки больших объемов данных
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000  # Увеличиваем с 1000 до 10000
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB для загрузки файлов
+
 # Настройки логирования
 LOGGING = {
     'version': 1,

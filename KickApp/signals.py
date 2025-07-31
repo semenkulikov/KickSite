@@ -110,15 +110,19 @@ def restart_hydra_on_streamer_settings_change(sender, instance, created, **kwarg
             
             print(f"🔔 Сигнал: стример {instance.streamer.vid}, is_active={instance.is_active}, global_enabled={global_settings.is_enabled}")
             
-            # Проверяем, есть ли активные стримеры в гидре
+            # Проверяем, есть ли активные стримеры в гидре (только с активным статусом)
             active_streamers = StreamerStatus.objects.filter(
                 is_hydra_enabled=True,
-                assigned_user__isnull=False
+                assigned_user__isnull=False,
+                status='active'  # Добавляем фильтр по статусу
             ).count()
             
             print(f"🔍 Активных стримеров в гидре: {active_streamers}")
             
-            if global_settings.is_enabled and instance.is_active and active_streamers > 0:
+            # Проверяем, должен ли этот стример быть активным
+            should_be_active = global_settings.is_enabled and instance.is_active
+            
+            if should_be_active:
                 if current_running:
                     print(f"🔄 Перезапускаем бота Гидру после изменения настроек стримера {instance.streamer.vid}...")
                     restart_auto_messaging()
