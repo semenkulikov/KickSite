@@ -179,7 +179,14 @@ class SupabaseSyncService:
                 vid = streamer_data['vid']
                 order_id = streamer_data['order_id']
                 updated_at = streamer_data['updated_at']
-                status = streamer_data.get('status', 'active')  # Получаем статус из Supabase
+                
+                # Определяем статус: если статус явно указан в данных, используем его
+                # Если статус пустой, None или 'unknown', считаем стримера неактивным
+                status = streamer_data.get('status', 'unknown')
+                
+                # Если статус пустой, None или 'unknown', считаем стримера неактивным
+                if not status or status == '' or status == 'unknown':
+                    status = 'inactive'
                 
                 # Создаем или обновляем запись
                 streamer, created = await sync_to_async(StreamerStatus.objects.get_or_create)(

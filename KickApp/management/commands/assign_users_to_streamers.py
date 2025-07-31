@@ -1,12 +1,12 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from KickApp.models import StreamerStatus, KickAccount, KickAccountAssignment
-import random
+from KickApp.models import KickAccount
 
 User = get_user_model()
 
 class Command(BaseCommand):
-    help = 'Назначает пользователей к стримерам для работы гидры'
+    help = 'Создает отдельного пользователя для каждого стримера с именем стримера'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -17,42 +17,11 @@ class Command(BaseCommand):
         parser.add_argument(
             '--user',
             type=str,
-            help='Конкретный пользователь для назначения',
+            help='Конкретный пользователь для назначения (не используется в новой логике)',
         )
 
     def handle(self, *args, **options):
         force = options['force']
-        specific_user = options['user']
-        
-        # Получаем активных пользователей с аккаунтами
-        users_with_accounts = []
-        
-        if specific_user:
-            try:
-                user = User.objects.get(username=specific_user)
-                if user.assigned_kick_accounts.exists():
-                    users_with_accounts.append(user)
-                else:
-                    self.stdout.write(
-                        self.style.ERROR(f'Пользователь {specific_user} не имеет назначенных аккаунтов')
-                    )
-                    return
-            except User.DoesNotExist:
-                self.stdout.write(
-                    self.style.ERROR(f'Пользователь {specific_user} не найден')
-                )
-                return
-        else:
-            # Получаем всех пользователей с назначенными аккаунтами
-            users_with_accounts = list(User.objects.filter(
-                assigned_kick_accounts__isnull=False
-            ).distinct())
-        
-        if not users_with_accounts:
-            self.stdout.write(
-                self.style.ERROR('Нет пользователей с назначенными аккаунтами')
-            )
-            return
         
         # Получаем активных стримеров без назначенных пользователей
         streamers_without_users = StreamerStatus.objects.filter(
@@ -67,16 +36,33 @@ class Command(BaseCommand):
             return
         
         self.stdout.write(f'Найдено {len(streamers_without_users)} стримеров без назначенных пользователей')
-        self.stdout.write(f'Доступно {len(users_with_accounts)} пользователей с аккаунтами')
         
         assigned_count = 0
         
         for streamer in streamers_without_users:
-            # Выбираем случайного пользователя
-            user = random.choice(users_with_accounts)
+            streamer_name = streamer.vid
+            
+            # Проверяем, существует ли уже пользователь с таким именем
+            user, created = User.objects.get_or_create(
+                username=streamer_name,
+                defaults={
+                    'email': f'{streamer_name}@kick.com',
+                    'first_name': streamer_name,
+                    'last_name': 'Streamer'
+                }
+            )
+            
+            if created:
+                self.stdout.write(
+                    self.style.SUCCESS(f'Создан новый пользователь {streamer_name}')
+                )
+            else:
+                self.stdout.write(
+                    self.style.WARNING(f'Пользователь {streamer_name} уже существует')
+                )
             
             # Проверяем, не назначен ли уже этот пользователь к другому стримеру
-            if not force and StreamerStatus.objects.filter(assigned_user=user).exists():
+            if not force and StreamerStatus.objects.filter(assigned_user=user).exclude(id=streamer.id).exists():
                 self.stdout.write(f'Пользователь {user.username} уже назначен к другому стримеру, пропускаем')
                 continue
             
