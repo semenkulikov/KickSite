@@ -252,7 +252,7 @@ class SupabaseSyncService:
             # Назначаем все доступные Kick аккаунты к этому пользователю
             available_accounts = await sync_to_async(list)(KickAccount.objects.filter(
                 status='active',
-                assignment__isnull=True  # Аккаунты без назначений
+                assignments__isnull=True  # Аккаунты без назначений
             ))
             
             accounts_assigned = 0

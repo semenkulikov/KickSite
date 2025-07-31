@@ -72,7 +72,7 @@ class Command(BaseCommand):
             # Назначаем все доступные Kick аккаунты к этому пользователю
             available_accounts = KickAccount.objects.filter(
                 status='active',
-                assignment__isnull=True  # Аккаунты без назначений
+                assignments__isnull=True  # Аккаунты без назначений
             )
             
             accounts_assigned = 0
