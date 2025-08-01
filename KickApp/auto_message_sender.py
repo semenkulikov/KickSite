@@ -240,17 +240,14 @@ class AutoMessageSender:
                 if previous_enabled_state is not None and previous_enabled_state != current_enabled_state:
                     if current_enabled_state:
                         logger.info("🔄 Бот включен, перезапускаем автоматическую рассылку...")
-                        print("🔄 Бот включен, перезапускаем автоматическую рассылку...")
                     else:
                         logger.info("🛑 Бот отключен, останавливаем автоматическую рассылку...")
-                        print("🛑 Бот отключен, останавливаем автоматическую рассылку...")
                         self.is_running = False
                         break
                 
                 previous_enabled_state = current_enabled_state
                 
                 if not self.settings.is_enabled:
-                    print("⏸️ Автоматическая рассылка отключена, останавливаем сервис...")
                     logger.info("⏸️ Автоматическая рассылка отключена, останавливаем сервис...")
                     # Останавливаем сервис полностью
                     self.is_running = False
@@ -492,7 +489,7 @@ class AutoMessageSender:
                     'message_interval': message_interval
                 })
                 
-                await sync_to_async(shift.finish)()
+                await sync_to_async(shift.end_shift)()
                 logger.info(f"📤 Цикл завершен для {streamer.vid}: отправлено {sent_count} сообщений (неудачно: {failed_count})")
                 
                 # Отправляем статистику смены

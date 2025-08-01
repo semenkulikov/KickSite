@@ -184,9 +184,12 @@ class SupabaseSyncService:
                 # Если статус пустой, None, 'unknown' или 'offline', считаем стримера неактивным
                 status = streamer_data.get('status', 'unknown')
                 
+                logger.info(f"🔍 Стример {vid}: Supabase статус = '{status}'")
+                
                 # Если статус пустой, None, 'unknown' или 'offline', считаем стримера неактивным
                 if not status or status == '' or status == 'unknown' or status == 'offline':
                     status = 'inactive'
+                    logger.info(f"🔄 Стример {vid}: статус изменен на 'inactive' (было '{streamer_data.get('status', 'unknown')}')")
                 
                 # Создаем или обновляем запись
                 streamer, created = await sync_to_async(StreamerStatus.objects.get_or_create)(
@@ -200,13 +203,20 @@ class SupabaseSyncService:
                 
                 if not created:
                     # Обновляем существующую запись
+                    old_status = streamer.status
                     streamer.status = status
                     streamer.order_id = order_id
                     streamer.last_updated = timezone.now()
                     await sync_to_async(streamer.save)()
+                    
+                    if old_status != status:
+                        logger.info(f"🔄 Стример {vid}: статус обновлен с '{old_status}' на '{status}'")
+                    else:
+                        logger.info(f"✅ Стример {vid}: статус не изменился ('{status}')")
                 
                 # Назначаем пользователя к стримеру (если еще не назначен)
-                if not streamer.assigned_user:
+                assigned_user = await sync_to_async(lambda: streamer.assigned_user)()
+                if not assigned_user:
                     await self._assign_user_to_streamer_async(streamer)
                 
                 # Обновляем индивидуальные настройки стримера
