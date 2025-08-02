@@ -289,6 +289,10 @@ CSRF_TRUSTED_ORIGINS = [
     "http://5.35.91.173:8000/login",
     "http://starkinc.shop",
     "https://starkinc.shop",
+    "http://starkincpanel.com",
+    "https://starkincpanel.com",
+    "http://www.starkincpanel.com",
+    "https://www.starkincpanel.com",
     # Add any additional origins you trust here
 ]
 
