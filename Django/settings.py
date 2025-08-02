@@ -27,9 +27,21 @@ LOGS_DIR.mkdir(exist_ok=True)
 SECRET_KEY = 'django-insecure-your-secret-key-here'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = ['127.0.0.1', '0.0.0.0', 'example.com','localhost','5.35.91.173','starkinc.shop', '*']
+ALLOWED_HOSTS = [
+    '127.0.0.1', 
+    '0.0.0.0', 
+    'localhost',
+    '5.35.91.173',
+    'starkinc.shop',
+    'www.starkinc.shop',
+    # Добавьте сюда ваш домен, например:
+    # 'yourdomain.com',
+    # 'www.yourdomain.com',
+    'starkincpanel.com',
+    'www.starkincpanel.com'
+]
 
 # Увеличиваем лимиты для обработки больших объемов данных
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000  # Увеличиваем с 1000 до 10000
