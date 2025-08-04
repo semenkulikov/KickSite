@@ -14,14 +14,19 @@ class CustomUserAdmin(UserAdmin):
     ordering = ('username',)
 
     def get_queryset(self, request):
-        """Ограничиваем доступ для обычных админов"""
+        """Фильтруем пользователей в зависимости от роли текущего пользователя"""
         qs = super().get_queryset(request)
-        if request.user.is_superuser:
+        
+        # Супер админ видит всех
+        if request.user.is_superuser or (hasattr(request.user, 'is_super_admin') and request.user.is_super_admin):
             return qs
-        elif hasattr(request.user, 'role') and request.user.role and request.user.role.name == 'ADMIN':
-            # Обычные админы видят только обычных пользователей (не админов)
-            return qs.filter(role__name='USER')
-        return qs.none()
+        
+        # Обычный админ видит всех пользователей, кроме супер админов
+        if hasattr(request.user, 'is_admin') and request.user.is_admin:
+            return qs.exclude(role__name='super_admin')
+        
+        # Обычный пользователь видит только себя
+        return qs.filter(id=request.user.id)
     
     def has_add_permission(self, request):
         """Обычные админы не могут добавлять пользователей"""
@@ -55,21 +60,6 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('role', 'phone', 'telegram')
         }),
     )
-
-    def get_queryset(self, request):
-        """Фильтруем пользователей в зависимости от роли текущего пользователя"""
-        qs = super().get_queryset(request)
-        
-        # Супер админ видит всех
-        if request.user.is_superuser or request.user.is_super_admin:
-            return qs
-        
-        # Обычный админ видит всех пользователей, кроме супер админов
-        if request.user.is_admin:
-            return qs.exclude(role__name='super_admin')
-        
-        # Обычный пользователь видит только себя
-        return qs.filter(id=request.user.id)
 
 admin.site.register(UserRole, UserRoleAdmin)
 admin.site.register(User, CustomUserAdmin)

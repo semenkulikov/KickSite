@@ -69,6 +69,7 @@ class User(AbstractUser, PermissionsMixin):
             self.role = default_role
         
         # Автоматически присваиваем права в зависимости от роли
+        # НО: не переопределяем права суперпользователя, если они уже установлены
         if self.role:
             if self.role.name == 'SUPER_ADMIN':
                 self.is_staff = True
@@ -76,11 +77,16 @@ class User(AbstractUser, PermissionsMixin):
                 self.is_active = True
             elif self.role.name == 'ADMIN':
                 self.is_staff = True
-                self.is_superuser = False
+                # Не сбрасываем is_superuser если он уже True
+                if not self.is_superuser:
+                    self.is_superuser = False
                 self.is_active = True
             else:  # USER
-                self.is_staff = False
-                self.is_superuser = False
+                # Для обычных пользователей НЕ сбрасываем права суперпользователя
+                # если они уже установлены (например, через createsuperuser)
+                if not self.is_superuser:
+                    self.is_staff = False
+                    self.is_superuser = False
                 self.is_active = True
         
         # Сохраняем пользователя

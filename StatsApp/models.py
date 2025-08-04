@@ -164,7 +164,7 @@ class ShiftLog(models.Model):
     
     shift = models.ForeignKey(Shift, related_name='logs', on_delete=models.CASCADE, verbose_name='Shift')
     timestamp = models.DateTimeField(verbose_name='Timestamp', auto_now_add=True)
-    action_type = models.CharField(verbose_name='Action Type', max_length=20, choices=ACTION_TYPES)
+    action_type = models.CharField(verbose_name='Action Type', max_length=50, choices=ACTION_TYPES)
     description = models.TextField(verbose_name='Description')
     details = models.JSONField(verbose_name='Details', null=True, blank=True)
     

@@ -12,6 +12,10 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 import os
 from pathlib import Path
+from dotenv import find_dotenv, load_dotenv
+
+if find_dotenv():
+    load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -24,10 +28,10 @@ LOGS_DIR.mkdir(exist_ok=True)
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-your-secret-key-here'
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = bool(os.getenv("DEBUG_MODE"))
 
 ALLOWED_HOSTS = [
     '127.0.0.1', 
@@ -44,8 +48,8 @@ ALLOWED_HOSTS = [
 ]
 
 # Увеличиваем лимиты для обработки больших объемов данных
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000  # Увеличиваем с 1000 до 10000
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB для загрузки файлов
+DATA_UPLOAD_MAX_NUMBER_FIELDS = int(os.getenv("DATA_UPLOAD_MAX_NUMBER_FIELDS"))  # Увеличиваем с 1000 до 10000
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("DATA_UPLOAD_MAX_MEMORY_SIZE"))  # 10MB для загрузки файлов
 
 # Настройки логирования
 LOGGING = {
@@ -192,29 +196,30 @@ if True:
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# PostgreSQL конфигурация
 DATABASES = {
     'default': {
-        'ENGINE': "django.db.backends.postgresql",
-        'NAME': "<database-name>",
-        'USER': "<user>",
-        'PASSWORD': "<password>",
-        'HOST': "127.0.0.1",
-        'PORT': "5432"
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv("DATABASE_NAME"),
+        'USER': os.getenv("DATABASE_USER"),
+        'PASSWORD': os.getenv("DATABASE_PASSWORD"),
+        'HOST': os.getenv("DATABASE_HOST"),
+        'PORT': os.getenv("DATABASE_PORT"),
+        'OPTIONS': {
+            'connect_timeout': 10,
+        },
+        'CONN_MAX_AGE': 60,  # Keep connections alive for 60 seconds
+        'ATOMIC_REQUESTS': False,  # Disable atomic requests for better performance
     }
 }
 
-if True: #DEBUG:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': os.path.join(BASE_DIR, 'database', 'db.sqlite3'),
-            'OPTIONS': {
-                'timeout': 30,  # Database lock timeout in seconds
-                'check_same_thread': False,  # Allow multiple threads
-            },
-            'CONN_MAX_AGE': 0,  # Close connections immediately
-        }
-    }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'database' / 'db.sqlite3',
+#     }
+# }
 
 
 # Password validation
@@ -234,8 +239,6 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
-
-DATA_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25 Mb
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
@@ -304,23 +307,29 @@ SOCKETS_DIR = dict()
 
 AUTH_USER_MODEL = 'ServiceApp.User'
 
+# Authentication backends
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+
 # Logging configuration
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'file': {
-            'level': 'INFO',
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
-        },
-        'console': {
-            'level': 'DEBUG',
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'loggers': {
-        # 'TwitchApp.chat_manager': {},
-        # 'ServiceApp.Validators.twitch_token': {},
-    },
-}
+# LOGGING = {
+#     'version': 1,
+#     'disable_existing_loggers': False,
+#     'handlers': {
+#         'file': {
+#             'level': 'INFO',
+#             'class': 'logging.FileHandler',
+#             'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
+#         },
+#         'console': {
+#             'level': 'DEBUG',
+#             'class': 'logging.StreamHandler',
+#         },
+#     },
+#     'loggers': {
+#         # 'TwitchApp.chat_manager': {},
+#         # 'ServiceApp.Validators.twitch_token': {},
+#     },
+# }
