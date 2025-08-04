@@ -8,8 +8,8 @@ class UserRoleAdmin(admin.ModelAdmin):
     ordering = ('name',)
 
 class CustomUserAdmin(UserAdmin):
-    list_display = ('username', 'email', 'is_active', 'date_joined')
-    list_filter = ('is_active', 'is_staff', 'date_joined')
+    list_display = ('username', 'email', 'role', 'is_active', 'is_staff', 'is_superuser', 'date_joined')
+    list_filter = ('is_active', 'is_staff', 'is_superuser', 'role', 'date_joined')
     search_fields = ('username', 'email', 'first_name', 'last_name')
     ordering = ('username',)
 
@@ -17,36 +17,74 @@ class CustomUserAdmin(UserAdmin):
         """Фильтруем пользователей в зависимости от роли текущего пользователя"""
         qs = super().get_queryset(request)
         
+        # Суперпользователь видит всех
+        if request.user.is_superuser:
+            return qs
+        
         # Супер админ видит всех
-        if request.user.is_superuser or (hasattr(request.user, 'is_super_admin') and request.user.is_super_admin):
+        if hasattr(request.user, 'is_super_admin') and request.user.is_super_admin:
             return qs
         
         # Обычный админ видит всех пользователей, кроме супер админов
         if hasattr(request.user, 'is_admin') and request.user.is_admin:
-            return qs.exclude(role__name='super_admin')
+            return qs.exclude(role__name=UserRole.SUPER_ADMIN)
         
         # Обычный пользователь видит только себя
         return qs.filter(id=request.user.id)
     
     def has_add_permission(self, request):
-        """Обычные админы не могут добавлять пользователей"""
-        if request.user.is_superuser:
-            return True
-        return False
+        """Только суперпользователи и супер админы могут добавлять пользователей"""
+        return request.user.is_superuser or (hasattr(request.user, 'is_super_admin') and request.user.is_super_admin)
     
     def has_change_permission(self, request, obj=None):
-        """Обычные админы могут изменять только обычных пользователей"""
+        """Права на изменение пользователей"""
+        # Суперпользователь может изменять всех
         if request.user.is_superuser:
             return True
-        elif hasattr(request.user, 'role') and request.user.role and request.user.role.name == 'ADMIN':
-            if obj and hasattr(obj, 'role') and obj.role and obj.role.name == 'USER':
+        
+        # Супер админ может изменять всех
+        if hasattr(request.user, 'is_super_admin') and request.user.is_super_admin:
+            return True
+        
+        # Обычный админ может изменять только обычных пользователей и других админов
+        if hasattr(request.user, 'is_admin') and request.user.is_admin:
+            if obj is None:  # Список пользователей
                 return True
+            # Не может изменять супер админов
+            if hasattr(obj, 'role') and obj.role and obj.role.name == UserRole.SUPER_ADMIN:
+                return False
+            return True
+        
+        # Обычный пользователь может изменять только себя
+        if obj and obj.id == request.user.id:
+            return True
+        
         return False
     
     def has_delete_permission(self, request, obj=None):
-        """Обычные админы не могут удалять пользователей"""
+        """Только суперпользователи и супер админы могут удалять пользователей"""
+        return request.user.is_superuser or (hasattr(request.user, 'is_super_admin') and request.user.is_super_admin)
+    
+    def has_view_permission(self, request, obj=None):
+        """Права на просмотр пользователей"""
+        # Суперпользователь видит всех
         if request.user.is_superuser:
             return True
+        
+        # Супер админ видит всех
+        if hasattr(request.user, 'is_super_admin') and request.user.is_super_admin:
+            return True
+        
+        # Обычный админ видит всех, кроме супер админов
+        if hasattr(request.user, 'is_admin') and request.user.is_admin:
+            if obj and hasattr(obj, 'role') and obj.role and obj.role.name == UserRole.SUPER_ADMIN:
+                return False
+            return True
+        
+        # Обычный пользователь видит только себя
+        if obj and obj.id == request.user.id:
+            return True
+        
         return False
     
     fieldsets = UserAdmin.fieldsets + (

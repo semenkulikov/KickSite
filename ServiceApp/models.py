@@ -63,37 +63,41 @@ class User(AbstractUser, PermissionsMixin):
         return f'{self.username}'
     
     def save(self, *args, **kwargs):
-        # При создании пользователя устанавливаем роль по умолчанию
+        # Если это новый пользователь и роль не установлена, устанавливаем USER по умолчанию
         if not self.pk and not self.role:
             default_role, created = UserRole.objects.get_or_create(name=UserRole.USER)
             self.role = default_role
-        
-        # Автоматически присваиваем права в зависимости от роли
-        # НО: не переопределяем права суперпользователя, если они уже установлены
+
+        # Сохраняем оригинальные права перед изменением
+        original_is_superuser = self.is_superuser
+        original_is_staff = self.is_staff
+
+        # Присваиваем права в зависимости от роли
         if self.role:
-            if self.role.name == 'SUPER_ADMIN':
+            if self.role.name == UserRole.SUPER_ADMIN:
                 self.is_staff = True
                 self.is_superuser = True
                 self.is_active = True
-            elif self.role.name == 'ADMIN':
+            elif self.role.name == UserRole.ADMIN:
                 self.is_staff = True
-                # Не сбрасываем is_superuser если он уже True
-                if not self.is_superuser:
-                    self.is_superuser = False
+                self.is_superuser = False  # Админ не суперпользователь
                 self.is_active = True
-            else:  # USER
-                # Для обычных пользователей НЕ сбрасываем права суперпользователя
-                # если они уже установлены (например, через createsuperuser)
-                if not self.is_superuser:
-                    self.is_staff = False
-                    self.is_superuser = False
+            else:  # UserRole.USER
+                self.is_staff = False
+                self.is_superuser = False
                 self.is_active = True
+        
+        # ВАЖНО: Если пользователь уже был суперпользователем (например, через createsuperuser),
+        # НЕ понижаем его права
+        if original_is_superuser:
+            self.is_superuser = True
+            self.is_staff = True  # Суперпользователь должен быть staff
         
         # Сохраняем пользователя
         super().save(*args, **kwargs)
-        
+
         # После сохранения автоматически даем права на модели KickApp для админов
-        if self.role and self.role.name in ['SUPER_ADMIN', 'ADMIN']:
+        if self.role and self.role.name in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
             self._ensure_kickapp_permissions()
     
     def _ensure_kickapp_permissions(self):
