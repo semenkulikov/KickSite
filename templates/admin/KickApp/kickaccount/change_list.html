@@ -18,54 +18,16 @@
 {% endblock %}
 
 {% block content %}
+  <!-- DEBUG: Проверяем уведомления в шаблоне -->
+  <!-- DEBUG: messages = {{ messages }} -->
+  <!-- DEBUG: messages|length = {{ messages|length }} -->
+  
+  {% if messages %}
+  <ul class="messagelist">
+    {% for message in messages %}
+    <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
   {{ block.super }}
-{% endblock %}
-
-{% block extrahead %}
-  {{ block.super }}
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // Добавляем кнопку "Заменить прокси" в панель действий
-      const actionPanel = document.querySelector('.actions');
-      if (actionPanel) {
-        const replaceProxyBtn = document.createElement('button');
-        replaceProxyBtn.type = 'button';
-        replaceProxyBtn.className = 'button';
-        replaceProxyBtn.style.cssText = 'margin-left: 10px; background: #ff9800; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;';
-        replaceProxyBtn.textContent = 'Заменить прокси';
-        replaceProxyBtn.onclick = function() {
-          const checkboxes = document.querySelectorAll('input[name="_selected_action"]:checked');
-          if (checkboxes.length === 0) {
-            alert('Выберите аккаунты для обновления прокси');
-            return;
-          }
-          
-          // Отправляем форму с выбранными аккаунтами
-          const form = document.createElement('form');
-          form.method = 'POST';
-          form.action = 'mass_proxy_update/';
-          
-          const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-          const csrfInput = document.createElement('input');
-          csrfInput.type = 'hidden';
-          csrfInput.name = 'csrfmiddlewaretoken';
-          csrfInput.value = csrfToken;
-          form.appendChild(csrfInput);
-          
-          checkboxes.forEach(function(checkbox) {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = '_selected_action';
-            input.value = checkbox.value;
-            form.appendChild(input);
-          });
-          
-          document.body.appendChild(form);
-          form.submit();
-        };
-        
-        actionPanel.appendChild(replaceProxyBtn);
-      }
-    });
-  </script>
 {% endblock %} 

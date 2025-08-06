@@ -58,7 +58,7 @@ class KickAccountAdmin(admin.ModelAdmin):
     search_fields = ('login',)
     list_filter = ('status', 'proxy')
     change_list_template = "admin/KickApp/kickaccount/change_list.html"
-    actions = ['mass_proxy_update_action']
+    actions = ['mass_proxy_update_action', 'assign_to_user_action']
     
     def assigned_users_count(self, obj):
         """Количество назначенных пользователей"""
@@ -79,6 +79,152 @@ class KickAccountAdmin(admin.ModelAdmin):
         
         # Обычные пользователи не имеют доступа к админке (блокируется middleware)
         return qs.none()
+    
+    def assign_to_user_action(self, request, queryset):
+        """Массовое назначение кик аккаунтов пользователю"""
+        print(f"DEBUG: assign_to_user_action вызван")
+        print(f"DEBUG: POST данные: {request.POST}")
+        
+        # Если это первичный вызов действия (выбор аккаунтов)
+        if 'action' in request.POST and 'apply' not in request.POST:
+            print(f"DEBUG: Первичный вызов действия - показываем форму")
+            # Показываем форму выбора пользователя
+            users = get_user_model().objects.filter(is_active=True).order_by('username')
+            context = {
+                'title': 'Выберите пользователя для назначения аккаунтов',
+                'queryset': queryset,
+                'users': users,
+                'opts': self.model._meta,
+            }
+            return render(request, 'admin/KickApp/kickaccount/assign_to_user.html', context)
+        
+        # Если это отправка формы с выбранным пользователем
+        if 'apply' in request.POST:
+            user_id = request.POST.get('user')
+            print(f"DEBUG: Отправка формы с apply=1")
+            print(f"DEBUG: user_id = {user_id}")
+            print(f"DEBUG: Все POST данные: {dict(request.POST)}")
+            
+            if user_id:
+                try:
+                    user = get_user_model().objects.get(id=user_id)
+                    assigned_count = 0
+                    
+                    print(f"DEBUG: Начинаем назначение аккаунтов пользователю {user.username}")
+                    print(f"DEBUG: Выбрано аккаунтов: {queryset.count()}")
+                    
+                    for account in queryset:
+                        print(f"DEBUG: Обрабатываем аккаунт {account.login}")
+                        
+                        # Проверяем, есть ли уже назначение
+                        existing_assignment = KickAccountAssignment.objects.filter(
+                            kick_account=account,
+                            user=user
+                        ).first()
+                        
+                        if existing_assignment:
+                            print(f"DEBUG: Назначение уже существует для {account.login}")
+                            if not existing_assignment.is_active:
+                                existing_assignment.is_active = True
+                                existing_assignment.save()
+                                assigned_count += 1
+                                print(f"DEBUG: Активировано существующее назначение для {account.login}")
+                        else:
+                            # Создаем новое назначение
+                            assignment = KickAccountAssignment.objects.create(
+                                kick_account=account,
+                                user=user,
+                                assigned_by=request.user,
+                                assignment_type='admin_assigned',
+                                is_active=True
+                            )
+                            assigned_count += 1
+                            print(f"DEBUG: Создано новое назначение для {account.login}")
+                    
+                    print(f"DEBUG: Итого назначено {assigned_count} аккаунтов пользователю {user.username}")
+                    
+                    # Добавляем отладочную информацию для уведомлений
+                    print(f"DEBUG: Добавляем уведомление об успехе")
+                    messages.success(request, f'Успешно назначено {assigned_count} аккаунтов пользователю {user.username}')
+                    print(f"DEBUG: Уведомления в request: {list(request._messages)}")
+                    print(f"DEBUG: Количество уведомлений: {len(list(request._messages))}")
+                    
+                    # Проверяем сессию
+                    print(f"DEBUG: Сессия содержит уведомления: {request.session.get('_messages', [])}")
+                    print(f"DEBUG: Сессия до сохранения: {dict(request.session)}")
+                    
+                    # Принудительно сохраняем уведомления в сессии для ASGI
+                    try:
+                        from django.contrib.messages.storage.session import SessionStorage
+                        storage = SessionStorage(request)
+                        for message in request._messages:
+                            storage.add(message.level, message.message, message.extra_tags)
+                        print(f"DEBUG: Уведомления принудительно сохранены в сессии")
+                    except Exception as e:
+                        print(f"DEBUG: Ошибка при принудительном сохранении уведомлений: {e}")
+                    
+                    # Принудительно сохраняем уведомления в сессии
+                    request.session.modified = True
+                    print(f"DEBUG: Сессия помечена как измененная")
+                    
+                    # Проверяем, что происходит с уведомлениями после сохранения
+                    print(f"DEBUG: Уведомления после сохранения: {list(request._messages)}")
+                    print(f"DEBUG: Сессия после сохранения: {request.session.get('_messages', [])}")
+                    
+                    # Проверяем middleware (только для WSGI)
+                    try:
+                        middleware_chain = getattr(request, '_middleware_chain', None)
+                        print(f"DEBUG: MIDDLEWARE: {middleware_chain}")
+                    except AttributeError:
+                        print(f"DEBUG: MIDDLEWARE: ASGI режим - _middleware_chain недоступен")
+                    
+                    return redirect('admin:KickApp_kickaccount_changelist')
+                except Exception as e:
+                    print(f"DEBUG: Ошибка при назначении: {str(e)}")
+                    messages.error(request, f'Ошибка при назначении аккаунтов: {str(e)}')
+                    return redirect('admin:KickApp_kickaccount_changelist')
+            else:
+                print(f"DEBUG: Пользователь не выбран")
+                messages.error(request, 'Пользователь не выбран')
+                return redirect('admin:KickApp_kickaccount_changelist')
+        
+        # Если это не POST запрос, показываем форму
+        users = get_user_model().objects.filter(is_active=True).order_by('username')
+        context = {
+            'title': 'Выберите пользователя для назначения аккаунтов',
+            'queryset': queryset,
+            'users': users,
+            'opts': self.model._meta,
+        }
+        return render(request, 'admin/KickApp/kickaccount/assign_to_user.html', context)
+    
+    def changelist_view(self, request, extra_context=None):
+        """Переопределяем changelist_view для обработки действий"""
+        print(f"DEBUG: changelist_view вызван")
+        
+        # Проверяем уведомления
+        print(f"DEBUG: Уведомления в changelist_view: {list(request._messages)}")
+        print(f"DEBUG: Количество уведомлений в changelist_view: {len(list(request._messages))}")
+        print(f"DEBUG: Сессия в changelist_view: {request.session.get('_messages', [])}")
+        print(f"DEBUG: Полная сессия в changelist_view: {dict(request.session)}")
+        
+        # Проверяем, есть ли действие в POST
+        if request.method == 'POST' and 'action' in request.POST:
+            action = request.POST.get('action')
+            print(f"DEBUG: Действие: {action}")
+            
+            if action == 'assign_to_user_action':
+                # Получаем выбранные объекты
+                selected = request.POST.getlist('_selected_action')
+                print(f"DEBUG: Выбранные объекты: {selected}")
+                
+                if selected:
+                    queryset = self.get_queryset(request).filter(pk__in=selected)
+                    return self.assign_to_user_action(request, queryset)
+        
+        return super().changelist_view(request, extra_context)
+    
+    assign_to_user_action.short_description = "Привязать выбранные Кик аккаунты к пользователю"
     
     def mass_proxy_update_action(self, request, queryset):
         # Перенаправляем на страницу массового обновления прокси
@@ -418,7 +564,7 @@ class AutoResponseAdmin(admin.ModelAdmin):
 @admin.register(KickAccountAssignment)
 class KickAccountAssignmentAdmin(admin.ModelAdmin):
     list_display = ['kick_account', 'user', 'assigned_by', 'assignment_type', 'is_active', 'assigned_at']
-    list_filter = ['assignment_type', 'is_active', 'assigned_at']
+    list_filter = ['assignment_type', 'is_active', 'assigned_at', 'user']
     search_fields = ['kick_account__login', 'user__username']
     readonly_fields = ['assigned_at']
 

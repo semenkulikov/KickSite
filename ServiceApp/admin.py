@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.forms import UserCreationForm, UserChangeForm
 from .models import User, UserRole
 
 class UserRoleAdmin(admin.ModelAdmin):
@@ -7,7 +8,18 @@ class UserRoleAdmin(admin.ModelAdmin):
     search_fields = ('name', 'description')
     ordering = ('name',)
 
+class CustomUserCreationForm(UserCreationForm):
+    class Meta(UserCreationForm.Meta):
+        model = User
+
+class CustomUserChangeForm(UserChangeForm):
+    class Meta(UserChangeForm.Meta):
+        model = User
+
 class CustomUserAdmin(UserAdmin):
+    add_form = CustomUserCreationForm
+    form = CustomUserChangeForm
+    model = User
     list_display = ('username', 'email', 'role', 'is_active', 'is_staff', 'is_superuser', 'date_joined')
     list_filter = ('is_active', 'is_staff', 'is_superuser', 'role', 'date_joined')
     search_fields = ('username', 'email', 'first_name', 'last_name')

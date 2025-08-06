@@ -14,4 +14,19 @@
 </h1>
 {% endblock %}
 
+{% block content %}
+  <!-- DEBUG: Проверяем уведомления в base_site.html -->
+  <!-- DEBUG: messages = {{ messages }} -->
+  <!-- DEBUG: messages|length = {{ messages|length }} -->
+  
+  {% if messages %}
+  <ul class="messagelist">
+    {% for message in messages %}
+    <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}
+
 {% block nav-global %}{% endblock %} 
