@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from django.contrib.auth.forms import UserCreationForm, UserChangeForm
+from django.contrib.auth.forms import UserCreationForm, UserChangeForm, AdminPasswordChangeForm
 from .models import User, UserRole
 
 class UserRoleAdmin(admin.ModelAdmin):
@@ -19,6 +19,7 @@ class CustomUserChangeForm(UserChangeForm):
 class CustomUserAdmin(UserAdmin):
     add_form = CustomUserCreationForm
     form = CustomUserChangeForm
+    change_password_form = AdminPasswordChangeForm
     model = User
     list_display = ('username', 'email', 'role', 'is_active', 'is_staff', 'is_superuser', 'date_joined')
     list_filter = ('is_active', 'is_staff', 'is_superuser', 'role', 'date_joined')
