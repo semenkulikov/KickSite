@@ -50,6 +50,7 @@ ALLOWED_HOSTS = [
 # Увеличиваем лимиты для обработки больших объемов данных
 DATA_UPLOAD_MAX_NUMBER_FIELDS = int(os.getenv("DATA_UPLOAD_MAX_NUMBER_FIELDS"))  # Увеличиваем с 1000 до 10000
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("DATA_UPLOAD_MAX_MEMORY_SIZE"))  # 10MB для загрузки файлов
+DATA_UPLOAD_MAX_NUMBER_FILES = int(os.getenv("DATA_UPLOAD_MAX_NUMBER_FILES", "1000"))  # Максимальное количество файлов
 
 # Настройки логирования
 LOGGING = {

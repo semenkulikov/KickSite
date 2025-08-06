@@ -111,9 +111,12 @@ class User(AbstractUser, PermissionsMixin):
             kick_ct = ContentType.objects.get_for_model(KickAccount)
             kick_assign_ct = ContentType.objects.get_for_model(KickAccountAssignment)
             
+            # Получаем content type для модели User
+            user_ct = ContentType.objects.get_for_model(self.__class__)
+            
             # Получаем все права для этих моделей
             permissions = Permission.objects.filter(
-                content_type__in=[kick_ct, kick_assign_ct]
+                content_type__in=[kick_ct, kick_assign_ct, user_ct]
             )
             
             # Добавляем права пользователю (если их еще нет)

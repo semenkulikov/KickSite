@@ -33,8 +33,8 @@ class CustomUserAdmin(UserAdmin):
         return qs.filter(id=request.user.id)
     
     def has_add_permission(self, request):
-        """Только суперпользователи и супер админы могут добавлять пользователей"""
-        return request.user.is_superuser or (hasattr(request.user, 'is_super_admin') and request.user.is_super_admin)
+        """Обычные админы могут добавлять пользователей"""
+        return request.user.is_superuser or (hasattr(request.user, 'is_super_admin') and request.user.is_super_admin) or (hasattr(request.user, 'is_admin') and request.user.is_admin)
     
     def has_change_permission(self, request, obj=None):
         """Права на изменение пользователей"""
@@ -46,7 +46,7 @@ class CustomUserAdmin(UserAdmin):
         if hasattr(request.user, 'is_super_admin') and request.user.is_super_admin:
             return True
         
-        # Обычный админ может изменять только обычных пользователей и других админов
+        # Обычный админ может изменять всех, кроме супер админов
         if hasattr(request.user, 'is_admin') and request.user.is_admin:
             if obj is None:  # Список пользователей
                 return True
