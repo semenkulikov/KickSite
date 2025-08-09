@@ -55,7 +55,7 @@ class Command(BaseCommand):
                     account.password or '',
                     account.storage_state_status or '',
                     account.proxy.url if account.proxy else '',
-                    account.proxy.status if account.proxy else ''
+                    str(account.proxy.status) if account.proxy else ''
                 ]
                 writer.writerow(row)
         
