@@ -6,7 +6,7 @@ from django.utils import timezone
 
 
 class Command(BaseCommand):
-    help = 'Экспортирует все KickAccount в CSV-файл'
+    help = 'Экспортирует все KickAccount в CSV-файл с полной информацией о Proxy'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -19,8 +19,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         output_file = options['output']
         
-        # Получаем все KickAccount
-        kick_accounts = KickAccount.objects.all()
+        # Получаем все KickAccount с связанными Proxy
+        kick_accounts = KickAccount.objects.select_related('proxy').all()
         
         if not kick_accounts.exists():
             self.stdout.write(self.style.WARNING('Нет KickAccount для экспорта'))
@@ -38,7 +38,9 @@ class Command(BaseCommand):
                 'session_token',
                 'storage_state_path',
                 'password',
-                'storage_state_status'
+                'storage_state_status',
+                'proxy_url',
+                'proxy_status'
             ]
             writer.writerow(headers)
             
@@ -51,7 +53,9 @@ class Command(BaseCommand):
                     account.session_token or '',
                     account.storage_state_path or '',
                     account.password or '',
-                    account.storage_state_status or ''
+                    account.storage_state_status or '',
+                    account.proxy.url if account.proxy else '',
+                    account.proxy.status if account.proxy else ''
                 ]
                 writer.writerow(row)
         

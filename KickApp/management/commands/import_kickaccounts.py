@@ -2,11 +2,12 @@ import csv
 import os
 from django.core.management.base import BaseCommand
 from KickApp.models import KickAccount
+from ProxyApp.models import Proxy
 from django.utils import timezone
 
 
 class Command(BaseCommand):
-    help = 'Импортирует KickAccount из CSV-файла'
+    help = 'Импортирует KickAccount из CSV-файла с созданием Proxy объектов'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -43,6 +44,7 @@ class Command(BaseCommand):
         # Импортируем данные
         imported_count = 0
         skipped_count = 0
+        proxy_created_count = 0
         
         with open(input_file, 'r', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
@@ -57,6 +59,24 @@ class Command(BaseCommand):
                         skipped_count += 1
                         continue
                     
+                    # Обрабатываем Proxy
+                    proxy = None
+                    if row.get('proxy_url') and row['proxy_url'].strip():
+                        proxy_url = row['proxy_url'].strip()
+                        proxy_status = row.get('proxy_status', 'True').lower() == 'true' if row.get('proxy_status') else True
+                        
+                        # Проверяем, существует ли уже такой прокси
+                        try:
+                            proxy = Proxy.objects.get(url=proxy_url)
+                        except Proxy.DoesNotExist:
+                            # Создаем новый прокси
+                            proxy = Proxy(url=proxy_url, status=proxy_status)
+                            proxy.save()
+                            proxy_created_count += 1
+                            self.stdout.write(
+                                self.style.SUCCESS(f'Создан новый Proxy: {proxy_url}')
+                            )
+                    
                     # Создаем новый аккаунт
                     account = KickAccount(
                         login=row['login'],
@@ -65,7 +85,8 @@ class Command(BaseCommand):
                         session_token=row['session_token'] if row['session_token'] else None,
                         storage_state_path=row['storage_state_path'] if row['storage_state_path'] else None,
                         password=row['password'] if row['password'] else None,
-                        storage_state_status=row['storage_state_status'] if row['storage_state_status'] else 'pending'
+                        storage_state_status=row['storage_state_status'] if row['storage_state_status'] else 'pending',
+                        proxy=proxy
                     )
                     
                     account.save()
@@ -79,6 +100,7 @@ class Command(BaseCommand):
         
         self.stdout.write(
             self.style.SUCCESS(
-                f'Импорт завершен. Импортировано: {imported_count}, Пропущено: {skipped_count}'
+                f'Импорт завершен. Импортировано: {imported_count} KickAccount, '
+                f'Создано: {proxy_created_count} Proxy, Пропущено: {skipped_count}'
             )
         )
