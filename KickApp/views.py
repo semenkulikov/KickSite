@@ -58,7 +58,7 @@ def kick_accounts_dashboard(request):
     # Проверяем права доступа
     if not (user.is_staff or user.is_admin):
         messages.error(request, 'У вас нет прав для доступа к управлению аккаунтами.')
-        return redirect('kick_index')
+        return redirect('kick_accounts_dashboard')
     
     if user.is_super_admin:
         # Супер админ видит все аккаунты
@@ -77,7 +77,7 @@ def kick_accounts_dashboard(request):
     else:
         # Обычные пользователи не имеют доступа
         messages.error(request, 'У вас нет прав для доступа к управлению аккаунтами.')
-        return redirect('kick_index')
+        return redirect('kick_accounts_dashboard')
     
     # Обработка фильтра
     filter_type = request.GET.get('filter')

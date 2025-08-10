@@ -1,9 +1,11 @@
 from django.urls import path
+from django.shortcuts import redirect
 from . import views
  
 urlpatterns = [
     # Существующие маршруты
-    path('', views.kick_index, name='kick_index'),
+    # path('', views.kick_index, name='kick_index'),  # Закомментирован старый URL
+    path('', lambda request: redirect('kick_accounts_dashboard'), name='kick_index'),  # Редирект на управление аккаунтами
     path('chat/', views.kick_chat, name='kick_chat'),
     path('stats/', views.kick_stats, name='kick_stats'),
     path('api/channel_info/', views.channel_info, name='kick_channel_info'),
