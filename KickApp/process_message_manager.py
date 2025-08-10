@@ -195,6 +195,21 @@ def send_message_process(request_data, result_queue=None):
                 error_data = response.json()
                 error_message = error_data.get('status', {}).get('message', 'Unknown error')
                 
+                # Добавляем детальное логирование для Unknown error
+                if error_message == 'Unknown error':
+                    logger.error(f"[PROCESS_SEND] Unknown error details - Status: {response.status_code}")
+                    logger.error(f"[PROCESS_SEND] Full response: {response.text}")
+                    logger.error(f"[PROCESS_SEND] Account: {account}, Channel: {channel}")
+                    logger.error(f"[PROCESS_SEND] Proxy: {proxy_url}")
+                    
+                    # Пытаемся извлечь больше информации из ответа
+                    if 'error' in error_data:
+                        error_message = error_data.get('error', 'Unknown error')
+                    elif 'message' in error_data:
+                        error_message = error_data.get('message', 'Unknown error')
+                    elif 'detail' in error_data:
+                        error_message = error_data.get('detail', 'Unknown error')
+                
                 # Специальная обработка известных ошибок
                 if "banned" in error_message.lower():
                     result = "BANNED_ERROR"
@@ -207,7 +222,9 @@ def send_message_process(request_data, result_queue=None):
                 else:
                     logger.error(f"[PROCESS_SEND] Kick.com error: {error_message}")
                     result = f"Kick.com error: {error_message}"
-            except:
+            except Exception as parse_error:
+                logger.error(f"[PROCESS_SEND] Failed to parse error response: {parse_error}")
+                logger.error(f"[PROCESS_SEND] Raw response: {response.text}")
                 result = f"HTTP {response.status_code}: {response.text[:100]}"
                 
     except Exception as e:

@@ -196,11 +196,29 @@ async def send_kick_message_cloudscraper(chatbot_id: int, channel: str, message:
             try:
                 error_data = response.json()
                 error_message = error_data.get('status', {}).get('message', 'Unknown error')
+                
+                # Добавляем детальное логирование для Unknown error
+                if error_message == 'Unknown error':
+                    logger.error(f"[SEND_MESSAGE] Unknown error details - Status: {response.status_code}")
+                    logger.error(f"[SEND_MESSAGE] Full response: {response.text}")
+                    logger.error(f"[SEND_MESSAGE] Headers: {dict(response.headers)}")
+                    logger.error(f"[SEND_MESSAGE] Account: {chatbot_id}, Channel: {channel}")
+                    logger.error(f"[SEND_MESSAGE] Proxy: {proxy_url}")
+                    
+                    # Пытаемся извлечь больше информации из ответа
+                    if 'error' in error_data:
+                        error_message = error_data.get('error', 'Unknown error')
+                    elif 'message' in error_data:
+                        error_message = error_data.get('message', 'Unknown error')
+                    elif 'detail' in error_data:
+                        error_message = error_data.get('detail', 'Unknown error')
+                
                 logger.error(f"[SEND_MESSAGE] Kick.com error: {error_message}")
                 # Возвращаем ошибку с текстом для показа в алерте
                 return f"Kick.com error: {error_message}"
-            except:
-                logger.error(f"[SEND_MESSAGE] Failed to parse error response")
+            except Exception as parse_error:
+                logger.error(f"[SEND_MESSAGE] Failed to parse error response: {parse_error}")
+                logger.error(f"[SEND_MESSAGE] Raw response: {response.text}")
                 return f"HTTP {response.status_code}: {response.text[:100]}"
             
     except Exception as e:
@@ -803,6 +821,15 @@ class KickAppChatWs(AsyncWebsocketConsumer):
             else:
                 # Другие ошибки - аккаунт помечается крестиком только на текущий сеанс (не в БД)
                 print(f"[handle_send_error] Account {account.login} marked as inactive for current session due to unknown error")
+                
+                # Дополнительная диагностика для Unknown error
+                if "unknown error" in error_message.lower():
+                    print(f"[handle_send_error] Unknown error details for {account.login}:")
+                    print(f"[handle_send_error] - Error message: {error_message}")
+                    print(f"[handle_send_error] - Proxy: {proxy_url}")
+                    print(f"[handle_send_error] - Account status: {account.status}")
+                    print(f"[handle_send_error] - Account token: {account.token[:20]}..." if account.token else "No token")
+                
                 return "session_inactive"  # Возвращаем статус для пометки на сеанс
                 
         except Exception as e:
