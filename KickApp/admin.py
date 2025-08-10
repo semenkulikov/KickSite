@@ -53,10 +53,27 @@ def normalize_proxy_url(proxy_str):
     else:
         return proxy_str  # fallback, возможно уже валидный
 
+class AssignedUserFilter(SimpleListFilter):
+    """Фильтр для отображения KickAccount по назначенным пользователям"""
+    title = 'Назначен пользователю'
+    parameter_name = 'assigned_user'
+
+    def lookups(self, request, model_admin):
+        # Получаем всех пользователей, которым назначены аккаунты
+        users = get_user_model().objects.filter(
+            assigned_kick_accounts__isnull=False
+        ).distinct().order_by('username')
+        return [(user.id, user.username) for user in users]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(assigned_users__id=self.value()).distinct()
+        return queryset
+
 class KickAccountAdmin(admin.ModelAdmin):
     list_display = ('login', 'owner', 'proxy', 'status', 'created', 'updated', 'assigned_users_count')
     search_fields = ('login',)
-    list_filter = ('status', 'proxy')
+    list_filter = ('status', 'proxy', AssignedUserFilter)
     change_list_template = "admin/KickApp/kickaccount/change_list.html"
     actions = ['mass_proxy_update_action', 'assign_to_user_action']
     
@@ -68,6 +85,9 @@ class KickAccountAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         """Фильтруем аккаунты в зависимости от роли пользователя"""
         qs = super().get_queryset(request)
+        
+        # Оптимизируем запросы для связанных данных
+        qs = qs.select_related('proxy', 'owner').prefetch_related('assigned_users')
         
         # Супер админ видит все
         if request.user.is_superuser or request.user.is_super_admin:
