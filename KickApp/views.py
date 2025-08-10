@@ -55,19 +55,19 @@ def kick_accounts_dashboard(request):
     """
     user = request.user
     
-    # Проверяем права доступа
-    if not (user.is_staff or user.is_admin):
+    # Проверяем права доступа - суперадмин и админ должны иметь is_staff=True
+    if not (user.is_staff or user.is_admin or user.is_super_admin):
         messages.error(request, 'У вас нет прав для доступа к управлению аккаунтами.')
-        return redirect('kick_accounts_dashboard')
+        return redirect('index')  # Редирект на главную страницу
     
-    if user.is_super_admin:
+    if user.is_super_admin or user.is_superuser:
         # Супер админ видит все аккаунты
         kick_accounts = KickAccount.objects.all()
         assignments = KickAccountAssignment.objects.all()
         active_assignments = KickAccountAssignment.objects.filter(is_active=True)
         my_accounts = KickAccount.objects.filter(owner=user)
         my_assignments = KickAccountAssignment.objects.filter(assigned_by=user)
-    elif user.is_admin:
+    elif user.is_admin or user.is_staff:
         # Обычный админ видит ВСЕ аккаунты
         kick_accounts = KickAccount.objects.all()
         assignments = KickAccountAssignment.objects.all()
@@ -77,7 +77,7 @@ def kick_accounts_dashboard(request):
     else:
         # Обычные пользователи не имеют доступа
         messages.error(request, 'У вас нет прав для доступа к управлению аккаунтами.')
-        return redirect('kick_accounts_dashboard')
+        return redirect('index')  # Редирект на главную страницу
     
     # Обработка фильтра
     filter_type = request.GET.get('filter')
