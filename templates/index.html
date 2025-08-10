@@ -12,10 +12,34 @@
 
 <div class="row text-center">
     <div class="col">
-        <h1>MAIN - HOMEPAGE</h1>
+        <h1>Добро пожаловать в Web Streams</h1>
+        {% if user.is_staff or user.is_admin %}
+        <div class="mt-4">
+            <h3>Панель управления</h3>
+            <div class="row justify-content-center">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Kick</h5>
+                            <p class="card-text">Управление Kick аккаунтами и чатом</p>
+                            <a href="{% url 'kick_accounts_dashboard' %}" class="btn btn-primary">Управление аккаунтами</a>
+                            <a href="{% url 'kick_chat' %}" class="btn btn-secondary">Chat</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Статистика</h5>
+                            <p class="card-text">Просмотр статистики и отчетов</p>
+                            <a href="{% url 'StatsApp:shift_statistics' %}" class="btn btn-info">Статистика Kick</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
-
-<!-- Только Kick, никаких Twitch -->
 
 {% endblock %}
