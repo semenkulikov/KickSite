@@ -371,7 +371,7 @@ class AutoMessageSender:
                 logger.info(f"⏸️ Нет активных сообщений для стримера {streamer.vid}")
                 return
             
-            # Получаем аккаунты пользователя
+            # Получаем аккаунты пользователя стримера
             user_accounts = await sync_to_async(list)(
                 KickAccount.objects.filter(
                     assignments__user=streamer.assigned_user,
