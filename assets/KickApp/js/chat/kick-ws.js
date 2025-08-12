@@ -11,6 +11,28 @@ let _kickSocketInitialized = false;
 let awaitAccountsPingStatus = false;
 let workStatus = false;
 
+// Функция для отправки выбора канала с retry
+function sendChannelSelectionWithRetry(channel, maxRetries = 3) {
+    let retries = 0;
+    const sendChannel = () => {
+        const socket = getKickSocket();
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                type: 'KICK_SELECT_CHANNEL',
+                channel: channel
+            }));
+            console.log(`[KICK-WS] Channel selection sent successfully: ${channel}`);
+        } else if (retries < maxRetries) {
+            retries++;
+            console.log(`[KICK-WS] WebSocket not ready, retry ${retries}/${maxRetries} in 1 second`);
+            setTimeout(sendChannel, 1000);
+        } else {
+            console.error(`[KICK-WS] Failed to send channel selection after ${maxRetries} retries`);
+        }
+    };
+    sendChannel();
+}
+
 function getKickSocket() {
   if (_kickSocket) return _kickSocket;
 
@@ -32,6 +54,14 @@ socket.binaryType = 'arraybuffer'; // Используем ArrayBuffer для л
       "event": "KICK_CONNECT",
       "message": "HELLO",
     }));
+    
+    // При восстановлении соединения повторно отправляем канал если он выбран
+    if (window.selectedChannel) {
+      console.log('[KICK-WS] Reconnecting, resending channel selection:', window.selectedChannel);
+      setTimeout(() => {
+        sendChannelSelectionWithRetry(window.selectedChannel);
+      }, 500); // Небольшая задержка для стабилизации соединения
+    }
   };
 
   socket.onclose = function (e) {
@@ -329,17 +359,24 @@ socket.binaryType = 'arraybuffer'; // Используем ArrayBuffer для л
 
   observeSelectedChannel(function(channel) {
     console.log('[KICK-WS] selectedChannel changed:', channel);
-    if (socket.readyState === WebSocket.OPEN && channel) {
-      socket.send(JSON.stringify({
-        type: 'KICK_SELECT_CHANNEL',
-        channel: channel
-      }));
-      console.log('[KICK-WS] Sent KICK_SELECT_CHANNEL:', channel);
-  }
+    if (channel) {
+      if (window.sendChannelSelectionWithRetry) {
+        window.sendChannelSelectionWithRetry(channel);
+      } else if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: 'KICK_SELECT_CHANNEL',
+          channel: channel
+        }));
+        console.log('[KICK-WS] Sent KICK_SELECT_CHANNEL:', channel);
+      }
+    }
   });
 
   _kickSocket = socket;
   return socket;
 }
+
+// Делаем функцию глобально доступной
+window.sendChannelSelectionWithRetry = sendChannelSelectionWithRetry;
 
 export {getKickSocket, awaitAccountsPingStatus, workStatus};

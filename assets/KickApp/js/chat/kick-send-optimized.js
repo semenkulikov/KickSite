@@ -36,7 +36,29 @@ async function sendBatchMessages(messageBatch) {
 // Флаг для предотвращения повторного вызова
 let isSending = false;
 
+// Глобальные обработчики ошибок для сброса флага isSending
+window.addEventListener('error', (event) => {
+    console.warn('[optimizedKickSend] Global error detected, resetting isSending flag');
+    isSending = false;
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    console.warn('[optimizedKickSend] Unhandled promise rejection, resetting isSending flag');
+    isSending = false;
+});
+
+// Функция для принудительного сброса флага
+function resetSendingFlag() {
+    if (isSending) {
+        console.warn('[optimizedKickSend] Force reset isSending flag');
+        isSending = false;
+    }
+}
+
 async function optimizedKickSend() {
+    // Принудительный сброс флага если он завис
+    resetSendingFlag();
+    
     // Защита от повторного вызова
     if (isSending) {
         console.log('[optimizedKickSend] Already sending, skipping...');
@@ -44,6 +66,14 @@ async function optimizedKickSend() {
     }
     
     isSending = true;
+    
+    // Таймаут для автоматического сброса флага (10 секунд)
+    const sendingTimeout = setTimeout(() => {
+        if (isSending) {
+            console.warn('[optimizedKickSend] Sending timeout, resetting isSending flag');
+            isSending = false;
+        }
+    }, 10000);
     
     let data = checkingConditions();
     if (!data) {
@@ -159,6 +189,8 @@ async function optimizedKickSend() {
         console.error('[optimizedKickSend] Error:', error);
         // Не показываем алерт здесь, так как он может дублироваться
     } finally {
+        // Очищаем таймаут
+        clearTimeout(sendingTimeout);
         // Сбрасываем флаг в любом случае
         isSending = false;
     }

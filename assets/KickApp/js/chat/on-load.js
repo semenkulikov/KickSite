@@ -18,6 +18,12 @@ document.addEventListener('DOMContentLoaded', () => {
           type: 'KICK_SELECT_CHANNEL',
           channel: channel.value
         }));
+      } else {
+        // Используем retry механизм если WebSocket не готов
+        console.log('[KICK-WS] WebSocket not ready, using retry mechanism');
+        if (window.sendChannelSelectionWithRetry) {
+          window.sendChannelSelectionWithRetry(channel.value);
+        }
       }
     } else {
       changeViewChannel(false);
@@ -48,10 +54,14 @@ document.addEventListener('DOMContentLoaded', () => {
       window.selectedChannel = channel;
       // Форсируем отправку события на ws
       if (window.selectedChannel && typeof window.selectedChannel === 'string') {
-        getKickSocket().send(JSON.stringify({
-          type: 'KICK_SELECT_CHANNEL',
-          channel: window.selectedChannel
-        }));
+        if (window.sendChannelSelectionWithRetry) {
+          window.sendChannelSelectionWithRetry(window.selectedChannel);
+        } else {
+          getKickSocket().send(JSON.stringify({
+            type: 'KICK_SELECT_CHANNEL',
+            channel: window.selectedChannel
+          }));
+        }
         console.log('[KICK-WS] Forced KICK_SELECT_CHANNEL after selectedChannel set:', window.selectedChannel);
       }
     }
@@ -63,10 +73,14 @@ document.addEventListener('DOMContentLoaded', () => {
     window.selectedChannel = '';
   }
   if (channel && typeof channel === 'string') {
-    getKickSocket().send(JSON.stringify({
-      type: 'KICK_SELECT_CHANNEL',
-      channel: channel
-    }));
+    if (window.sendChannelSelectionWithRetry) {
+      window.sendChannelSelectionWithRetry(channel);
+    } else {
+      getKickSocket().send(JSON.stringify({
+        type: 'KICK_SELECT_CHANNEL',
+        channel: channel
+      }));
+    }
     console.log('[KICK-WS] Auto-sent KICK_SELECT_CHANNEL for already selected channel:', channel);
   }
 
