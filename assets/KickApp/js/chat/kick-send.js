@@ -160,8 +160,10 @@ function handleMessageResponse(responseData, isSuccess) {
   const account = responseData.account || "unknown";
   
   if (isSuccess) {
-    const message = responseData.text || responseData.message || "no message";
-    showAlert(`✅ Message sent from ${account}: ${message}`, "alert-success");
+    // Убираем алерт для успешных сообщений - показываем только ошибки
+    // const message = responseData.text || responseData.message || "no message";
+    // showAlert(`✅ Message sent from ${account}: ${message}`, "alert-success");
+    console.log(`✅ Message sent from ${account}: ${responseData.text || responseData.message || "no message"}`);
   } else {
     // Показываем точно то, что присылает Kick.com
     const errorMessage = responseData.message || "Unknown error";

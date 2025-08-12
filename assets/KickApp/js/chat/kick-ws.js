@@ -265,10 +265,10 @@ socket.binaryType = 'arraybuffer'; // Используем ArrayBuffer для л
         if (data.auto) {
           recordAutoMessageResponse();
         } else {
-          // Показываем алерт только для ручных сообщений
-          const successMessage = data.message || "Message sent successfully";
-          const successAccount = data.account || "unknown";
-          showAlert(`✅ Message sent from ${successAccount}: ${successMessage}`, "alert-success", true, 2000);
+          // Убираем алерт для ручных сообщений - показываем только ошибки
+          // const successMessage = data.message || "Message sent successfully";
+          // const successAccount = data.account || "unknown";
+          // showAlert(`✅ Message sent from ${successAccount}: ${successMessage}`, "alert-success", true, 2000);
           recordChatMessageResponse();
         }
         break;
@@ -278,10 +278,10 @@ socket.binaryType = 'arraybuffer'; // Используем ArrayBuffer для л
         if (data.auto) {
           recordAutoMessageResponse();
         } else {
-          // Показываем алерт только для ручных сообщений
-          const sendMessage = data.message || "Message sent successfully";
-          const sendAccount = data.account || "unknown";
-          showAlert(`✅ Message sent from ${sendAccount}: ${sendMessage}`, "alert-success", true, 2000);
+          // Убираем алерт для ручных сообщений - показываем только ошибки
+          // const sendMessage = data.message || "Message sent successfully";
+          // const sendAccount = data.account || "unknown";
+          // showAlert(`✅ Message sent from ${sendAccount}: ${sendMessage}`, "alert-success", true, 2000);
           recordChatMessageResponse();
         }
         break;
