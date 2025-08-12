@@ -21,16 +21,11 @@ function showAccounts(accounts) {
             const checkbox = existing.querySelector('.account__checkbox');
             const badgeStatus = existing.querySelector('.ms-2');
             
-            if (checkbox) {
-                checkbox.disabled = acc.status !== 'active';
-                
-                // Если аккаунт стал неактивным, снимаем с него выделение
-                if (acc.status !== 'active') {
-                    checkbox.checked = false;
-                    checkbox.setAttribute("data-account-selected", "false");
-                    existing.classList.remove("account-checked");
-                    console.log(`[showAccounts] Removed selection from inactive account: ${acc.login}`);
-                }
+            // Если аккаунт стал неактивным, снимаем с него выделение
+            if (acc.status !== 'active') {
+                existing.classList.remove("account-checked");
+        
+                console.log(`[showAccounts] Removed selection from inactive account: ${acc.login}`);
             }
             
             if (badgeStatus) {
@@ -40,39 +35,48 @@ function showAccounts(accounts) {
         } else {
             // Если аккаунта нет, создаем новый
             let block = document.createElement("div");
-            block.className = "account-block account d-flex align-items-center gap-2 mb-2 p-2 rounded bg-dark";
+            block.className = "account-block";
             block.setAttribute("data-account-status", acc.status);
             block.id = `account-block-${acc.id}`;
-            // Аватар
-            let avatar = document.createElement("div");
-            avatar.className = "account-avatar me-2";
-            avatar.style = "width:32px;height:32px;border-radius:50%;background:#23232a;display:flex;align-items:center;justify-content:center;font-weight:bold;color:#fff;";
-            avatar.innerText = acc.login[0]?.toUpperCase() || "?";
-            block.appendChild(avatar);
+
             // Логин
             let login = document.createElement("span");
-            login.className = "account-login fw-bold";
+            login.className = "account-login";
             login.innerText = acc.login;
             block.appendChild(login);
-            // Статус
-            let badgeStatus = document.createElement("span");
-            badgeStatus.className = acc.status === 'active' ? "ms-2 text-success" : "ms-2 text-danger";
-            badgeStatus.innerHTML = acc.status === 'active' ? '✔️' : '❌';
-            block.appendChild(badgeStatus);
-            // Чекбокс
-            let input = document.createElement("input");
-            input.type = "checkbox";
-            input.className = "account__checkbox ms-2";
-            input.id = `account-${acc.id}`;
-            input.value = acc.login;
-            input.setAttribute("data-account-selected", "false");
-            if (acc.status !== 'active') input.disabled = true;
-            block.appendChild(input);
+            
+            // Добавляем hover стили через JavaScript
+            block.addEventListener("mouseenter", function (e) {
+                console.log(`[hover] Mouse entered: ${acc.login}`);
+                if (this.getAttribute("data-account-selected") !== "true") {
+                    this.style.backgroundColor = '#1a1a1a';
+                    this.style.borderColor = '#2196F3';
+                    this.style.borderWidth = '3px';
+                    this.style.transform = 'translateY(-4px) scale(1.03)';
+                    this.style.boxShadow = '0 8px 20px rgba(33, 150, 243, 0.4)';
+                }
+            });
+            
+            block.addEventListener("mouseleave", function (e) {
+                console.log(`[hover] Mouse left: ${acc.login}`);
+                if (this.getAttribute("data-account-selected") !== "true") {
+                    this.style.backgroundColor = '#1a1a1a';
+                    this.style.borderColor = '#4a4a5a';
+                    this.style.borderWidth = '3px';
+                    this.style.transform = 'translateY(0) scale(1)';
+                    this.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.4)';
+                }
+            });
+            
             // Клик по блоку — выделяет аккаунт (только если активен)
             block.addEventListener("click", function (e) {
+                console.log(`[click] Account block clicked: ${acc.login} (status: ${acc.status})`);
                 if (acc.status === 'active') {
-                    selectAccount(input.id);
+                    console.log(`[click] Calling selectAccount for: ${acc.login}`);
+                    selectAccount(acc.id, acc.login);
                     updateChatButtonsState();
+                } else {
+                    console.log(`[click] Cannot select inactive account: ${acc.login}`);
                 }
             });
             accountsContainer.appendChild(block);
@@ -95,54 +99,54 @@ function showAccounts(accounts) {
             return;
         }
         
-        let activeAccountsCount = 0;
+
         
         accounts.forEach((acc, idx) => {
             let block = document.createElement("div");
-            block.className = "account-block account d-flex align-items-center gap-2 mb-2 p-2 rounded bg-dark";
+            block.className = "account-block";
             block.setAttribute("data-account-status", acc.status);
             block.id = `account-block-${acc.id}`;
-            // Аватар-заглушка (можно заменить на реальный)
-            let avatar = document.createElement("div");
-            avatar.className = "account-avatar me-2";
-            avatar.style = "width:32px;height:32px;border-radius:50%;background:#23232a;display:flex;align-items:center;justify-content:center;font-weight:bold;color:#fff;";
-            avatar.innerText = acc.login[0]?.toUpperCase() || "?";
-            block.appendChild(avatar);
+
             // Логин
             let login = document.createElement("span");
-            login.className = "account-login fw-bold";
+            login.className = "account-login";
             login.innerText = acc.login;
             block.appendChild(login);
-            // Статус
-            let badgeStatus = document.createElement("span");
-            badgeStatus.className = acc.status === 'active' ? "ms-2 text-success" : "ms-2 text-danger";
-            badgeStatus.innerHTML = acc.status === 'active' ? '✔️' : '❌';
-            block.appendChild(badgeStatus);
-            // Чекбокс
-            let input = document.createElement("input");
-            input.type = "checkbox";
-            input.className = "account__checkbox ms-2";
-            input.id = `account-${acc.id}`;
-            input.value = acc.login;
+            // По умолчанию никто не выбран
+            block.setAttribute("data-account-selected", "false");
+
+            // Добавляем hover стили через JavaScript
+            block.addEventListener("mouseenter", function (e) {
+                console.log(`[hover] Mouse entered: ${acc.login}`);
+                if (this.getAttribute("data-account-selected") !== "true") {
+                    this.style.backgroundColor = '#1a1a1a';
+                    this.style.borderColor = '#2196F3';
+                    this.style.borderWidth = '3px';
+                    this.style.transform = 'translateY(-4px) scale(1.03)';
+                    this.style.boxShadow = '0 8px 20px rgba(33, 150, 243, 0.4)';
+                }
+            });
             
-            // По умолчанию выбираем все активные аккаунты
-            if (acc.status === 'active') {
-                input.setAttribute("data-account-selected", "true");
-                input.checked = true;
-                block.classList.add("account-checked");
-                activeAccountsCount++;
-            } else {
-                input.setAttribute("data-account-selected", "false");
-                input.checked = false;
-            }
+            block.addEventListener("mouseleave", function (e) {
+                console.log(`[hover] Mouse left: ${acc.login}`);
+                if (this.getAttribute("data-account-selected") !== "true") {
+                    this.style.backgroundColor = '#1a1a1a';
+                    this.style.borderColor = '#4a4a5a';
+                    this.style.borderWidth = '3px';
+                    this.style.transform = 'translateY(0) scale(1)';
+                    this.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.4)';
+                }
+            });
             
-            if (acc.status !== 'active') input.disabled = true;
-            block.appendChild(input);
             // Клик по блоку — выделяет аккаунт (только если активен)
             block.addEventListener("click", function (e) {
+                console.log(`[click] Account block clicked: ${acc.login} (status: ${acc.status})`);
                 if (acc.status === 'active') {
-                    selectAccount(input.id);
+                    console.log(`[click] Calling selectAccount for: ${acc.login}`);
+                    selectAccount(acc.id, acc.login);
                     updateChatButtonsState();
+                } else {
+                    console.log(`[click] Cannot select inactive account: ${acc.login}`);
                 }
             });
             accountsContainer.appendChild(block);
@@ -150,11 +154,11 @@ function showAccounts(accounts) {
         
         // Обновляем информацию о выбранных аккаунтах
         if (window.accountManager) {
-            window.accountManager.updateCurrentAccountInfo(`${activeAccountsCount} accounts selected`);
+            window.accountManager.updateCurrentAccountInfo(`${accounts.length} active accounts available`);
         } else {
             // Инициализируем AccountManager если он еще не создан
             window.accountManager = new AccountManager();
-            window.accountManager.updateCurrentAccountInfo(`${activeAccountsCount} accounts selected`);
+            window.accountManager.updateCurrentAccountInfo(`${accounts.length} active accounts available`);
         }
 }
 
@@ -170,33 +174,126 @@ function awaitAccounts() {
   }, 1000);
 }
 
-function selectAccount(id) {
-    const clickedAccount = document.getElementById(id);
-    if (!clickedAccount) return;
+function selectAccount(id, login) {
+    console.log(`[selectAccount] Called for account ${login} (ID: ${id})`);
+    
+    const accountBlock = document.getElementById(`account-block-${id}`);
+    if (!accountBlock) {
+        console.log(`[selectAccount] Account block not found for ID: ${id}`);
+        return;
+    }
     
     // Проверяем статус аккаунта перед выбором
-    const accountBlock = clickedAccount.closest('.account-block');
-    const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
+    const status = accountBlock.getAttribute('data-account-status');
+    console.log(`[selectAccount] Account status: ${status}`);
     
     if (status !== 'active') {
-        console.log(`[selectAccount] Cannot select inactive account: ${id}`);
+        console.log(`[selectAccount] Cannot select inactive account: ${login}`);
         return;
     }
     
     // Переключаем состояние выбранного аккаунта
-    const isCurrentlySelected = clickedAccount.getAttribute("data-account-selected") === "true";
-    const newState = !isCurrentlySelected;
+    const isCurrentlySelected = accountBlock.getAttribute("data-account-selected") === "true";
+    const newState = !isCurrentlySelected; // Переключаем состояние
     
-    console.log(`[selectAccount] Toggling account ${id}: ${isCurrentlySelected} -> ${newState}`);
+    console.log(`[selectAccount] Toggling account ${login}: ${isCurrentlySelected} -> ${newState}`);
     
     // Обновляем состояние для кликнутого аккаунта
-    clickedAccount.setAttribute("data-account-selected", newState ? "true" : "false");
-    clickedAccount.checked = newState;
+    accountBlock.setAttribute("data-account-selected", newState ? "true" : "false");
+    console.log(`[selectAccount] Set data-account-selected to: ${newState ? "true" : "false"}`);
     
+    // Принудительно применяем стили через JavaScript
     if (newState) {
-        clickedAccount.parentNode.classList.add("account-checked");
+        accountBlock.style.backgroundColor = '#2e7d32';
+        accountBlock.style.borderColor = '#4CAF50';
+        accountBlock.style.borderWidth = '2px';
+        accountBlock.style.boxShadow = '0 6px 20px rgba(76, 175, 80, 0.5)';
+        accountBlock.style.transform = 'translateY(-2px) scale(1.02)';
+    } else {
+        accountBlock.style.backgroundColor = '#1a1a1a';
+        accountBlock.style.borderColor = '#4a4a5a';
+        accountBlock.style.borderWidth = '2px';
+        accountBlock.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.4)';
+        accountBlock.style.transform = 'translateY(0) scale(1)';
+    }
+    
+    // Проверяем, применились ли CSS стили
+    setTimeout(() => {
+        const computedStyle = window.getComputedStyle(accountBlock);
+        console.log(`[selectAccount] Computed background-color: ${computedStyle.backgroundColor}`);
+        console.log(`[selectAccount] Computed border-color: ${computedStyle.borderColor}`);
+        console.log(`[selectAccount] Computed transform: ${computedStyle.transform}`);
+    }, 100);
+    
+    // Обновляем время последнего использования для сортировки
+    if (newState && window.accountManager) {
+        window.accountManager.updateAccountLastUsed(id, login);
+    }
+    
+    // Сортируем аккаунты после изменения состояния (выбор или снятие выделения)
+    if (window.accountManager) {
+        setTimeout(() => {
+            window.accountManager.sortAccountsByLastUsed();
+        }, 100);
+    }
+    
+    // Обновляем информацию о выбранных аккаунтах
+    if (window.accountManager) {
+        const selectedAccounts = document.querySelectorAll('.account-block[data-account-selected="true"]');
+        if (selectedAccounts.length === 0) {
+            window.accountManager.updateCurrentAccountInfo('None selected');
+        } else if (selectedAccounts.length === 1) {
+            const loginElement = selectedAccounts[0].querySelector('.account-login');
+            const login = loginElement ? loginElement.textContent : 'Unknown';
+            window.accountManager.updateCurrentAccountInfo(`Selected: ${login}`);
         } else {
-        clickedAccount.parentNode.classList.remove("account-checked");
+            window.accountManager.updateCurrentAccountInfo(`${selectedAccounts.length} accounts selected`);
+        }
+    }
+    
+    // Обновляем состояние кнопок
+    updateChatButtonsState();
+}
+
+function deselectAccount(id, login) {
+    console.log(`[deselectAccount] Called for account ${login} (ID: ${id})`);
+    
+    const accountBlock = document.getElementById(`account-block-${id}`);
+    if (!accountBlock) {
+        console.log(`[deselectAccount] Account block not found for ID: ${id}`);
+        return;
+    }
+    
+    // Снимаем выделение с аккаунта
+    accountBlock.setAttribute("data-account-selected", "false");
+    console.log(`[deselectAccount] Set data-account-selected to: false`);
+    
+    // Применяем стили для невыбранного состояния
+    accountBlock.style.backgroundColor = '#1a1a1a';
+    accountBlock.style.borderColor = '#4a4a5a';
+    accountBlock.style.borderWidth = '2px';
+    accountBlock.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.4)';
+    accountBlock.style.transform = 'translateY(0) scale(1)';
+    
+    // Сортируем аккаунты после снятия выделения
+    if (window.accountManager) {
+        setTimeout(() => {
+            window.accountManager.sortAccountsByLastUsed();
+        }, 100);
+    }
+    
+    // Обновляем информацию о выбранных аккаунтах
+    if (window.accountManager) {
+        const selectedAccounts = document.querySelectorAll('.account-block[data-account-selected="true"]');
+        if (selectedAccounts.length === 0) {
+            window.accountManager.updateCurrentAccountInfo('None selected');
+        } else if (selectedAccounts.length === 1) {
+            const loginElement = selectedAccounts[0].querySelector('.account-login');
+            const login = loginElement ? loginElement.textContent : 'Unknown';
+            window.accountManager.updateCurrentAccountInfo(`Selected: ${login}`);
+        } else {
+            window.accountManager.updateCurrentAccountInfo(`${selectedAccounts.length} accounts selected`);
+        }
     }
     
     // Обновляем состояние кнопок
@@ -219,7 +316,8 @@ function showNoAccounts(){
 
 window.showAccounts = showAccounts;
 window.selectAccount = selectAccount;
+window.deselectAccount = deselectAccount;
 window.showNoAccounts = showNoAccounts;
 window.awaitAccounts = awaitAccounts;
 
-export { showAccounts, showNoAccounts, awaitAccounts, selectAccount };
+export { showAccounts, showNoAccounts, awaitAccounts, selectAccount, deselectAccount };

@@ -132,7 +132,7 @@ function updateWorkButtonsState() {
   const endWorkBtn = document.getElementById("buttonEndWork");
   
   // Проверяем только активные аккаунты (независимо от выбора)
-  const activeAccounts = document.querySelectorAll('.account[data-account-status="active"]');
+  const activeAccounts = document.querySelectorAll('.account-block[data-account-status="active"]');
   const hasActiveAccounts = activeAccounts.length > 0;
   const currentWorkStatus = window.workStatus || workStatus;
   
@@ -153,11 +153,10 @@ function updateChatButtonsState() {
   const autoMessageCheckbox = document.getElementById('sendAutoMessageStatus');
   
   // Проверяем только активные выбранные аккаунты (видимые)
-  const selectedAccounts = document.querySelectorAll('[data-account-selected="true"]');
-  const activeSelectedAccounts = Array.from(selectedAccounts).filter(account => {
-    const accountBlock = account.closest('.account-block');
-    const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
-    const isVisible = accountBlock ? accountBlock.style.display !== 'none' : true;
+  const selectedAccounts = document.querySelectorAll('.account-block[data-account-selected="true"]');
+  const activeSelectedAccounts = Array.from(selectedAccounts).filter(accountBlock => {
+    const status = accountBlock.getAttribute('data-account-status');
+    const isVisible = accountBlock.style.display !== 'none';
     return status === 'active' && isVisible;
   });
   
@@ -170,9 +169,9 @@ function updateChatButtonsState() {
   const hasSelectedAccounts = activeSelectedAccounts.length > 0;
   const autoSwitchEnabled = window.accountManager && window.accountManager.autoSwitchEnabled;
   
-  // В auto switch режиме кнопка активна если есть видимые активные аккаунты
-  // В обычном режиме кнопка активна если есть активные выбранные аккаунты
-  const canUseButtons = (window.workStatus || workStatus) && (autoSwitchEnabled ? hasVisibleActiveAccounts : hasSelectedAccounts);
+  // Кнопки активны только если работа начата И есть выбранные аккаунты
+  const workStarted = window.workStatus || workStatus;
+  const canUseButtons = workStarted && (autoSwitchEnabled ? hasVisibleActiveAccounts : hasSelectedAccounts);
   
   console.log('[updateChatButtonsState] workStatus:', window.workStatus || workStatus, 'hasSelectedAccounts:', hasSelectedAccounts, 'hasVisibleActiveAccounts:', hasVisibleActiveAccounts, 'autoSwitchEnabled:', autoSwitchEnabled, 'canUseButtons:', canUseButtons);
   

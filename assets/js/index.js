@@ -14,6 +14,7 @@ import '../css/login.css';
 import '../css/chat.css';
 import '../css/stat.css';
 import '../css/channel-modal.css';
+import '../css/account-override.css';
 
 // Import project scripts
 import '../KickApp/js/chat/on-load.js';

@@ -141,6 +141,170 @@
   border-color: #614291;
 }
 
+/* СТИЛИ ДЛЯ АККАУНТОВ - МАКСИМАЛЬНАЯ СПЕЦИФИЧНОСТЬ */
+
+/* Базовые стили для всех аккаунтов */
+#accounts .account-block,
+div.account-block,
+.account-block,
+.account-block[data-account-status="active"],
+.account-block[data-account-status="inactive"] {
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  border: 3px solid #4a4a5a !important;
+  padding: 20px 24px !important;
+  border-radius: 8px !important;
+  margin-bottom: 12px !important;
+  background-color: #1a1a1a !important;
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  min-height: 70px !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4) !important;
+  font-family: Arial, sans-serif !important;
+  text-decoration: none !important;
+  outline: none !important;
+}
+
+/* Hover эффекты */
+#accounts .account-block:hover,
+div.account-block:hover,
+.account-block:hover,
+.account-block[data-account-status="active"]:hover,
+.account-block[data-account-status="inactive"]:hover {
+  background-color: #1a1a1a !important;
+  border-color: #2196F3 !important;
+  border-width: 3px !important;
+  transform: translateY(-4px) scale(1.03) !important;
+  box-shadow: 0 8px 20px rgba(33, 150, 243, 0.4) !important;
+}
+
+/* Выбранные аккаунты */
+#accounts .account-block[data-account-selected="true"],
+div.account-block[data-account-selected="true"],
+.account-block[data-account-selected="true"],
+.account-block[data-account-status="active"][data-account-selected="true"] {
+  background-color: #2e7d32 !important;
+  border: 3px solid #4CAF50 !important;
+  box-shadow: 0 8px 24px rgba(76, 175, 80, 0.5) !important;
+  transform: translateY(-4px) scale(1.03) !important;
+}
+
+/* Стили для логинов */
+#accounts .account-block .account-login,
+div.account-block .account-login,
+.account-block .account-login,
+.account-block[data-account-status="active"] .account-login,
+.account-block[data-account-status="inactive"] .account-login {
+  color: #ffffff !important;
+  transition: all 0.3s ease !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  width: 100% !important;
+  letter-spacing: 0.8px !important;
+  text-transform: uppercase !important;
+  font-family: Arial, sans-serif !important;
+  text-decoration: none !important;
+  outline: none !important;
+}
+
+/* Hover эффекты для логинов */
+#accounts .account-block:hover .account-login,
+div.account-block:hover .account-login,
+.account-block:hover .account-login,
+.account-block[data-account-status="active"]:hover .account-login,
+.account-block[data-account-status="inactive"]:hover .account-login {
+  color: #2196F3 !important;
+  font-weight: 700 !important;
+}
+
+/* Стили для выбранных логинов */
+#accounts .account-block[data-account-selected="true"] .account-login,
+div.account-block[data-account-selected="true"] .account-login,
+.account-block[data-account-selected="true"] .account-login,
+.account-block[data-account-status="active"][data-account-selected="true"] .account-login {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Скрываем неактивные аккаунты */
+#accounts .account-block[data-account-status="inactive"],
+div.account-block[data-account-status="inactive"],
+.account-block[data-account-status="inactive"] {
+  display: none !important;
+}
+
+/* Скрываем чекбоксы */
+.account__checkbox,
+input[type="checkbox"],
+.account-checked {
+  display: none !important;
+}
+
+/* Принудительное переопределение любых других стилей */
+.account-block * {
+  box-sizing: border-box !important;
+}
+
+/* Убираем любые Bootstrap стили */
+.account-block.btn,
+.account-block.btn-primary,
+.account-block.btn-secondary,
+.account-block.btn-success,
+.account-block.btn-danger,
+.account-block.btn-warning,
+.account-block.btn-info,
+.account-block.btn-light,
+.account-block.btn-dark {
+  background-color: #1a1a1a !important;
+  border: 3px solid #4a4a5a !important;
+  color: #ffffff !important;
+  padding: 20px 24px !important;
+  border-radius: 8px !important;
+  margin-bottom: 12px !important;
+  min-height: 70px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4) !important;
+  font-family: Arial, sans-serif !important;
+  text-decoration: none !important;
+  outline: none !important;
+}
+
+/* Убираем Bootstrap классы */
+.account-block.d-flex,
+.account-block.align-items-center,
+.account-block.justify-content-center,
+.account-block.gap-2,
+.account-block.mb-2,
+.account-block.p-2,
+.account-block.rounded,
+.account-block.bg-dark,
+.account-block.fw-bold {
+  background-color: #1a1a1a !important;
+  border: 3px solid #4a4a5a !important;
+  color: #ffffff !important;
+  padding: 20px 24px !important;
+  border-radius: 8px !important;
+  margin-bottom: 12px !important;
+  min-height: 70px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4) !important;
+  font-family: Arial, sans-serif !important;
+  text-decoration: none !important;
+  outline: none !important;
+}
+
 .account-auto-send {
   color: #ecdb39;
 }

@@ -53,11 +53,10 @@ async function optimizedKickSend() {
     }
 
     // Фильтруем только активные выбранные аккаунты (видимые)
-    const selectedAccounts = document.querySelectorAll('[data-account-selected="true"]');
-    const activeSelectedAccounts = Array.from(selectedAccounts).filter(account => {
-        const accountBlock = account.closest('.account-block');
-        const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
-        const isVisible = accountBlock ? accountBlock.style.display !== 'none' : true;
+    const selectedAccounts = document.querySelectorAll('.account-block[data-account-selected="true"]');
+    const activeSelectedAccounts = Array.from(selectedAccounts).filter(accountBlock => {
+        const status = accountBlock.getAttribute('data-account-status');
+        const isVisible = accountBlock.style.display !== 'none';
         return status === 'active' && isVisible;
     });
     
@@ -76,9 +75,10 @@ async function optimizedKickSend() {
             // Режим автоматического переключения
             window.accountManager.switchToNextAccount();
             
-            const currentSelectedAccount = document.querySelector('[data-account-selected="true"]');
+            const currentSelectedAccount = document.querySelector('.account-block[data-account-selected="true"]');
             if (currentSelectedAccount) {
-                const accountLogin = currentSelectedAccount.value;
+                const loginElement = currentSelectedAccount.querySelector('.account-login');
+                const accountLogin = loginElement ? loginElement.textContent : '';
                 const messageData = {
                     "channel": data.channel,
                     "account": accountLogin,
@@ -107,8 +107,9 @@ async function optimizedKickSend() {
             // Обычный режим - отправляем со всех активных выбранных аккаунтов
             const messageBatch = [];
             
-            activeSelectedAccounts.forEach((accountElement, index) => {
-                const accountLogin = accountElement.value;
+            activeSelectedAccounts.forEach((accountBlock, index) => {
+                const loginElement = accountBlock.querySelector('.account-login');
+                const accountLogin = loginElement ? loginElement.textContent : '';
                 const messageData = {
                     "channel": data.channel,
                     "account": accountLogin,
@@ -278,11 +279,10 @@ function checkSelectedAccount() {
     console.log('[checkSelectedAccount] Checking selected account...');
     
     // Проверяем только активные выбранные аккаунты (видимые)
-    const selectedAccounts = document.querySelectorAll('[data-account-selected="true"]');
-    const activeSelectedAccounts = Array.from(selectedAccounts).filter(account => {
-        const accountBlock = account.closest('.account-block');
-        const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
-        const isVisible = accountBlock ? accountBlock.style.display !== 'none' : true;
+    const selectedAccounts = document.querySelectorAll('.account-block[data-account-selected="true"]');
+    const activeSelectedAccounts = Array.from(selectedAccounts).filter(accountBlock => {
+        const status = accountBlock.getAttribute('data-account-status');
+        const isVisible = accountBlock.style.display !== 'none';
         return status === 'active' && isVisible;
     });
     

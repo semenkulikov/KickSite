@@ -147,7 +147,7 @@ document.getElementById('sendAutoMessageStatus').addEventListener("click", funct
       if (elementSelectedChannel.dataset.status === "selected") {
         let channel = elementSelectedChannel.innerText;
 
-        let accounts = document.getElementsByClassName("account__checkbox");
+        let accounts = document.querySelectorAll('.account-block[data-account-status="active"]');
 
         if (accounts.length) {
           // Загружаем сообщения из базы данных
@@ -208,10 +208,11 @@ document.getElementById('sendAutoMessageStatus').addEventListener("click", funct
                     window.accountManager.switchToNextAccount();
                     
                     // Получаем текущий выбранный аккаунт
-                    const currentSelectedAccount = document.querySelector('[data-account-selected="true"]');
+                    const currentSelectedAccount = document.querySelector('.account-block[data-account-selected="true"]');
                     
-                    if (currentSelectedAccount && currentSelectedAccount.value && messages && messages.length > 0) {
-                      let accountLogin = currentSelectedAccount.value;
+                    if (currentSelectedAccount && messages && messages.length > 0) {
+                      const loginElement = currentSelectedAccount.querySelector('.account-login');
+                      let accountLogin = loginElement ? loginElement.textContent : '';
                       // Выбираем следующее сообщение по порядку
                       let message = messages[autoMessageIndex % messages.length];
                       let data = {
@@ -232,16 +233,17 @@ document.getElementById('sendAutoMessageStatus').addEventListener("click", funct
                       autoMessageIndex++;
                     }
                   } else {
-                    // Старая логика для обычного режима
-                    const selectedAccounts = document.querySelectorAll('.account__checkbox:checked');
+                    // Новая логика для обычного режима
+                    const selectedAccounts = document.querySelectorAll('.account-block[data-account-selected="true"]');
                     
                     if (selectedAccounts.length > 0 && messages && messages.length > 0) {
                       // Выбираем случайный выбранный аккаунт
                       const randomIndex = Math.floor(Math.random() * selectedAccounts.length);
                       const selectedAccount = selectedAccounts[randomIndex];
                       
-                      if (selectedAccount && selectedAccount.value) {
-                        let accountLogin = selectedAccount.value;
+                      if (selectedAccount) {
+                        const loginElement = selectedAccount.querySelector('.account-login');
+                        let accountLogin = loginElement ? loginElement.textContent : '';
                         // Выбираем следующее сообщение по порядку
                         let message = messages[autoMessageIndex % messages.length];
                         let data = {

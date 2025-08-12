@@ -10,6 +10,7 @@ class AccountManager {
     this.usedAccounts = new Set(); // Для отслеживания использованных в рандомном режиме
     this.currentAccountIndex = 0;
     this.autoSwitchInterval = null;
+    this.accountLastUsed = new Map(); // Хранит время последнего использования для каждого аккаунта
     
     this.init();
   }
@@ -181,14 +182,15 @@ class AccountManager {
     accountBlocks.forEach(block => {
       // Проверяем, что аккаунт видим (не скрыт поиском)
       if (block.style.display !== 'none') {
-        const checkbox = block.querySelector('.account__checkbox');
-        if (checkbox) {
-          accounts.push({
-            id: checkbox.id,
-            login: checkbox.value,
-            element: checkbox
-          });
-        }
+        const loginElement = block.querySelector('.account-login');
+        const login = loginElement ? loginElement.textContent : '';
+        const accountId = block.id.replace('account-block-', '');
+        
+        accounts.push({
+          id: accountId,
+          login: login,
+          element: block
+        });
       }
     });
     
@@ -198,27 +200,30 @@ class AccountManager {
   // Выбор одного аккаунта (снимает выделение с остальных)
   selectSingleAccount(accountId) {
     // Снимаем выделение со всех аккаунтов
-    const allCheckboxes = document.querySelectorAll('.account__checkbox');
-    allCheckboxes.forEach(checkbox => {
-      checkbox.checked = false;
-      checkbox.setAttribute('data-account-selected', 'false');
-      checkbox.parentNode.classList.remove('account-checked');
+    const allAccountBlocks = document.querySelectorAll('.account-block');
+    allAccountBlocks.forEach(block => {
+              block.setAttribute('data-account-selected', 'false');
     });
     
     // Выбираем нужный аккаунт (только если он активен)
-    const targetCheckbox = document.getElementById(accountId);
-    if (targetCheckbox) {
-      const accountBlock = targetCheckbox.closest('.account-block');
-      const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
+    const targetBlock = document.getElementById(`account-block-${accountId}`);
+    if (targetBlock) {
+      const status = targetBlock.getAttribute('data-account-status');
       
       if (status === 'active') {
-        targetCheckbox.checked = true;
-        targetCheckbox.setAttribute('data-account-selected', 'true');
-        targetCheckbox.parentNode.classList.add('account-checked');
+        targetBlock.setAttribute('data-account-selected', 'true');
+        
+        // Обновляем время последнего использования
+        const loginElement = targetBlock.querySelector('.account-login');
+        const login = loginElement ? loginElement.textContent : '';
+        this.updateAccountLastUsed(accountId, login);
       } else {
         console.log(`[AccountManager] Cannot select inactive account: ${accountId}`);
       }
     }
+    
+    // Сортируем аккаунты по времени последнего использования
+    this.sortAccountsByLastUsed();
     
     // Обновляем состояние кнопок
     if (window.updateChatButtonsState) {
@@ -231,31 +236,26 @@ class AccountManager {
   // Выбор всех видимых активных аккаунтов
   selectAllAccounts() {
     // Выбираем только видимые активные аккаунты
-    const activeCheckboxes = document.querySelectorAll('.account__checkbox:not(:disabled)');
-    const visibleActiveAccounts = Array.from(activeCheckboxes).filter(checkbox => {
-      const accountBlock = checkbox.closest('.account-block');
-      const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
-      const isVisible = accountBlock ? accountBlock.style.display !== 'none' : true;
-      return status === 'active' && isVisible;
+    const visibleActiveAccounts = Array.from(document.querySelectorAll('.account-block[data-account-status="active"]')).filter(block => {
+      const isVisible = block.style.display !== 'none';
+      return isVisible;
     });
     
     // Обрабатываем все видимые активные аккаунты батчами для избежания зависания UI
-    this.processCheckboxesInBatches(visibleActiveAccounts, true, visibleActiveAccounts.length);
+    this.processAccountBlocksInBatches(visibleActiveAccounts, true, visibleActiveAccounts.length);
   }
   
-  // Обработка чекбоксов батчами для избежания зависания UI
-  processCheckboxesInBatches(checkboxes, checked, totalCount) {
+  // Обработка блоков аккаунтов батчами для избежания зависания UI
+  processAccountBlocksInBatches(accountBlocks, selected, totalCount) {
     const batchSize = 1000; // Увеличиваем размер батча для максимальной скорости
     let processed = 0;
     
     const processBatch = () => {
-      const batch = checkboxes.slice(processed, processed + batchSize);
+      const batch = accountBlocks.slice(processed, processed + batchSize);
       
       // Используем более эффективную обработку
-      const operations = batch.map(checkbox => () => {
-        checkbox.checked = checked;
-        checkbox.setAttribute('data-account-selected', checked ? 'true' : 'false');
-        checkbox.parentNode.classList.toggle('account-checked', checked);
+      const operations = batch.map(block => () => {
+        block.setAttribute('data-account-selected', selected ? 'true' : 'false');
       });
       
       // Выполняем все операции сразу
@@ -265,7 +265,7 @@ class AccountManager {
       
       // Обновляем прогресс реже для снижения нагрузки
       if (processed % 2000 === 0 || processed >= totalCount) {
-        if (checked) {
+        if (selected) {
           this.updateCurrentAccountInfo(`Processing: ${processed}/${totalCount} accounts...`);
         } else {
           this.updateCurrentAccountInfo(`Deselecting: ${processed}/${totalCount} accounts...`);
@@ -277,7 +277,7 @@ class AccountManager {
         requestAnimationFrame(processBatch);
       } else {
         // Завершили обработку
-        if (checked) {
+        if (selected) {
           this.updateCurrentAccountInfo(`${totalCount} accounts selected`);
           console.log(`[AccountManager] Selected ${totalCount} accounts`);
           
@@ -325,10 +325,10 @@ class AccountManager {
   
   // Снятие выделения со всех аккаунтов
   deselectAllAccounts() {
-    const allCheckboxes = document.querySelectorAll('.account__checkbox');
+    const allAccountBlocks = document.querySelectorAll('.account-block');
     
     // Обрабатываем батчами для избежания зависания UI
-    this.processCheckboxesInBatches(Array.from(allCheckboxes), false, allCheckboxes.length);
+    this.processAccountBlocksInBatches(Array.from(allAccountBlocks), false, allAccountBlocks.length);
   }
   
   // Обновление информации о текущем аккаунте
@@ -336,6 +336,41 @@ class AccountManager {
     if (this.currentAccountInfo) {
       this.currentAccountInfo.textContent = info;
     }
+  }
+  
+  // Обновление времени последнего использования аккаунта
+  updateAccountLastUsed(id, login) {
+    this.accountLastUsed.set(id, Date.now());
+  }
+  
+  // Сортировка аккаунтов с приоритетом выбранным
+  sortAccountsByLastUsed() {
+    const accountsContainer = document.getElementById('accounts');
+    if (!accountsContainer) return;
+    
+    const accountBlocks = Array.from(accountsContainer.querySelectorAll('.account-block[data-account-status="active"]'));
+    
+    // Сортируем аккаунты: сначала выбранные, потом по времени последнего использования
+    accountBlocks.sort((a, b) => {
+      const isSelectedA = a.getAttribute('data-account-selected') === 'true';
+      const isSelectedB = b.getAttribute('data-account-selected') === 'true';
+      
+      // Приоритет выбранным аккаунтам
+      if (isSelectedA && !isSelectedB) return -1;
+      if (!isSelectedA && isSelectedB) return 1;
+      
+      // Если оба выбраны или оба не выбраны, сортируем по времени использования
+      const idA = a.id.replace('account-block-', '');
+      const idB = b.id.replace('account-block-', '');
+      const timeA = this.accountLastUsed.get(parseInt(idA)) || 0;
+      const timeB = this.accountLastUsed.get(parseInt(idB)) || 0;
+      return timeB - timeA; // По убыванию (новые сверху)
+    });
+    
+    // Перемещаем элементы в отсортированном порядке
+    accountBlocks.forEach(block => {
+      accountsContainer.appendChild(block);
+    });
   }
   
   // Обновление состояния элементов управления
@@ -439,14 +474,9 @@ class AccountManager {
       // Проверяем, соответствует ли аккаунт поисковому запросу
       const matches = searchQuery === '' || login.includes(searchQuery);
       
-      // Отладочная информация о текущем состоянии элемента
-      const currentDisplay = window.getComputedStyle(block).display;
-      console.log(`[AccountManager] Account ${login}: current display = ${currentDisplay}, matches = ${matches}`);
-      
       if (matches) {
         // Элемент соответствует поиску - показываем его
         block.style.setProperty('display', '', 'important');
-        console.log(`[AccountManager] Showing account: ${login}`);
         visibleCount++;
         if (status === 'active') {
           activeVisibleCount++;
@@ -454,7 +484,6 @@ class AccountManager {
       } else {
         // Элемент не соответствует поиску - скрываем его
         block.style.setProperty('display', 'none', 'important');
-        console.log(`[AccountManager] Hiding account: ${login}`);
       }
     });
     
