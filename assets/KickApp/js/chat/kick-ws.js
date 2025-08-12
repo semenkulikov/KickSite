@@ -2,7 +2,7 @@ console.log('kick-ws.js LOADED');
 import {showAccounts, awaitAccounts, showNoAccounts} from "./kick-account";
 import {showAlert} from "./alert";
 import {workTimer, workTimerId, updateWorkButtonsState, updateChatButtonsState, showWorkNotification, hideWorkNotification} from "./kick-work";
-import {countingSendingPerMinute, averageSendingPerMinuteId, handleMessageResponse} from "./kick-send"
+import {countingSendingPerMinute, averageSendingPerMinuteId, handleMessageResponse} from "./kick-send-optimized"
 import {intervalSendAutoMessageId, intervalTimerSendAutoMessageId, startAutoMessageSending, stopAutoMessageSending} from "./kick-auto-messages"
 import {recordChatMessageResponse, recordAutoMessageResponse} from "./speed-manager"
 
@@ -242,7 +242,7 @@ socket.binaryType = 'arraybuffer'; // Используем ArrayBuffer для л
           account.classList.remove("account-auto-send");
         }
         
-        // Очищаем pendingMessages из kick-send.js
+        // Очищаем pendingMessages из kick-send-optimized.js
         if (window.pendingMessages) {
           window.pendingMessages.clear();
           console.log('[KICK_END_WORK] Cleared pending messages');

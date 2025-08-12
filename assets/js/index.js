@@ -18,7 +18,7 @@ import '../css/channel-modal.css';
 // Import project scripts
 import '../KickApp/js/chat/on-load.js';
 import '../KickApp/js/chat/kick-ws.js';
-import '../KickApp/js/chat/kick-send.js';
+import '../KickApp/js/chat/kick-send-optimized.js';
 import '../KickApp/js/chat/kick-account.js';
 import '../KickApp/js/chat/kick-range-slider.js';
 import '../KickApp/js/chat/kick-auto-messages.js';

@@ -52,15 +52,16 @@ async function optimizedKickSend() {
         return;
     }
 
-    // Фильтруем только активные выбранные аккаунты
+    // Фильтруем только активные выбранные аккаунты (видимые)
     const selectedAccounts = document.querySelectorAll('[data-account-selected="true"]');
     const activeSelectedAccounts = Array.from(selectedAccounts).filter(account => {
         const accountBlock = account.closest('.account-block');
         const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
-        return status === 'active';
+        const isVisible = accountBlock ? accountBlock.style.display !== 'none' : true;
+        return status === 'active' && isVisible;
     });
     
-    console.log(`[optimizedKickSend] Found ${selectedAccounts.length} selected accounts, ${activeSelectedAccounts.length} are active`);
+    console.log(`[optimizedKickSend] Found ${selectedAccounts.length} selected accounts, ${activeSelectedAccounts.length} are active and visible`);
 
     if (!window.workStatus) {
         showAlert("You haven't started work. Click on the \"Start work\" button", "alert-danger");
@@ -276,15 +277,16 @@ function checkSelectedChannel() {
 function checkSelectedAccount() {
     console.log('[checkSelectedAccount] Checking selected account...');
     
-    // Проверяем только активные выбранные аккаунты
+    // Проверяем только активные выбранные аккаунты (видимые)
     const selectedAccounts = document.querySelectorAll('[data-account-selected="true"]');
     const activeSelectedAccounts = Array.from(selectedAccounts).filter(account => {
         const accountBlock = account.closest('.account-block');
         const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
-        return status === 'active';
+        const isVisible = accountBlock ? accountBlock.style.display !== 'none' : true;
+        return status === 'active' && isVisible;
     });
     
-    console.log(`[checkSelectedAccount] Found ${selectedAccounts.length} selected accounts, ${activeSelectedAccounts.length} are active`);
+    console.log(`[checkSelectedAccount] Found ${selectedAccounts.length} selected accounts, ${activeSelectedAccounts.length} are active and visible`);
     
     if (activeSelectedAccounts.length === 0) {
         showAlert("You haven't selected any active accounts. Select an active account.", "alert-danger");

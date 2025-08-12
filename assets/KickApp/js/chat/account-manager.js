@@ -18,15 +18,18 @@ class AccountManager {
     // Инициализация элементов управления
     this.autoSwitchCheckbox = document.getElementById('autoSwitchAccounts');
     this.randomModeCheckbox = document.getElementById('randomMode');
-    this.selectAllBtn = document.getElementById('selectAllAccounts');
-    this.deselectAllBtn = document.getElementById('deselectAllAccounts');
+    // this.selectAllBtn = document.getElementById('selectAllAccounts'); // Закомментировано
+    // this.deselectAllBtn = document.getElementById('deselectAllAccounts'); // Закомментировано
     this.currentAccountInfo = document.getElementById('currentAccountInfo');
     
     // Привязка событий
     this.autoSwitchCheckbox?.addEventListener('change', (e) => this.toggleAutoSwitch(e.target.checked));
     this.randomModeCheckbox?.addEventListener('change', (e) => this.toggleRandomMode(e.target.checked));
-    this.selectAllBtn?.addEventListener('click', () => this.selectAllAccounts());
-    this.deselectAllBtn?.addEventListener('click', () => this.deselectAllAccounts());
+    // this.selectAllBtn?.addEventListener('click', () => this.selectAllAccounts()); // Закомментировано
+    // this.deselectAllBtn?.addEventListener('click', () => this.deselectAllAccounts()); // Закомментировано
+    
+    // Инициализация поиска аккаунтов
+    this.initAccountSearch();
     
     // Обновляем состояние элементов управления
     this.updateControlsState();
@@ -170,19 +173,22 @@ class AccountManager {
     this.switchToNextAccount();
   }
   
-  // Получение активных аккаунтов
+  // Получение активных аккаунтов (видимых)
   getActiveAccounts() {
     const accountBlocks = document.querySelectorAll('.account-block[data-account-status="active"]');
     const accounts = [];
     
     accountBlocks.forEach(block => {
-      const checkbox = block.querySelector('.account__checkbox');
-      if (checkbox) {
-        accounts.push({
-          id: checkbox.id,
-          login: checkbox.value,
-          element: checkbox
-        });
+      // Проверяем, что аккаунт видим (не скрыт поиском)
+      if (block.style.display !== 'none') {
+        const checkbox = block.querySelector('.account__checkbox');
+        if (checkbox) {
+          accounts.push({
+            id: checkbox.id,
+            login: checkbox.value,
+            element: checkbox
+          });
+        }
       }
     });
     
@@ -222,18 +228,19 @@ class AccountManager {
     }
   }
   
-  // Выбор всех активных аккаунтов
+  // Выбор всех видимых активных аккаунтов
   selectAllAccounts() {
-    // Выбираем только активные аккаунты
+    // Выбираем только видимые активные аккаунты
     const activeCheckboxes = document.querySelectorAll('.account__checkbox:not(:disabled)');
-    const activeAccounts = Array.from(activeCheckboxes).filter(checkbox => {
+    const visibleActiveAccounts = Array.from(activeCheckboxes).filter(checkbox => {
       const accountBlock = checkbox.closest('.account-block');
       const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
-      return status === 'active';
+      const isVisible = accountBlock ? accountBlock.style.display !== 'none' : true;
+      return status === 'active' && isVisible;
     });
     
-    // Обрабатываем все активные аккаунты батчами для избежания зависания UI
-    this.processCheckboxesInBatches(activeAccounts, true, activeAccounts.length);
+    // Обрабатываем все видимые активные аккаунты батчами для избежания зависания UI
+    this.processCheckboxesInBatches(visibleActiveAccounts, true, visibleActiveAccounts.length);
   }
   
   // Обработка чекбоксов батчами для избежания зависания UI
@@ -365,6 +372,110 @@ class AccountManager {
     this.updateControlsState();
     this.updateCurrentAccountInfo('None selected');
   }
+  
+  // Инициализация поиска аккаунтов
+  initAccountSearch() {
+    const searchInput = document.getElementById('accountSearch');
+    const clearButton = document.getElementById('clearSearch');
+    
+    if (searchInput) {
+      // Добавляем обработчик события input для поиска в реальном времени
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value;
+        this.filterAccounts(query);
+        this.updateClearButton(query);
+      });
+      
+      // Добавляем обработчик события keydown для очистки при нажатии Escape
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          searchInput.value = '';
+          this.filterAccounts('');
+          this.updateClearButton('');
+        }
+      });
+      
+      // Добавляем обработчик для кнопки очистки
+      if (clearButton) {
+        clearButton.addEventListener('click', () => {
+          searchInput.value = '';
+          this.filterAccounts('');
+          this.updateClearButton('');
+          searchInput.focus();
+        });
+      }
+      
+      console.log('[AccountManager] Account search initialized');
+    }
+  }
+  
+  // Обновление видимости кнопки очистки
+  updateClearButton(query) {
+    const clearButton = document.getElementById('clearSearch');
+    if (clearButton) {
+      clearButton.style.display = query.trim() ? 'block' : 'none';
+    }
+  }
+  
+  // Фильтрация аккаунтов по поисковому запросу
+  filterAccounts(query) {
+    const accountsContainer = document.getElementById('accounts');
+    const searchQuery = query.toLowerCase().trim();
+    
+    console.log(`[AccountManager] Filtering accounts with query: "${searchQuery}"`);
+    
+    // Получаем все блоки аккаунтов
+    const accountBlocks = accountsContainer.querySelectorAll('.account-block');
+    console.log(`[AccountManager] Found ${accountBlocks.length} account blocks to filter`);
+    
+    let visibleCount = 0;
+    let activeVisibleCount = 0;
+    
+    accountBlocks.forEach((block) => {
+      const loginElement = block.querySelector('.account-login');
+      const login = loginElement ? loginElement.textContent.toLowerCase() : '';
+      const status = block.getAttribute('data-account-status');
+      
+      // Проверяем, соответствует ли аккаунт поисковому запросу
+      const matches = searchQuery === '' || login.includes(searchQuery);
+      
+      // Отладочная информация о текущем состоянии элемента
+      const currentDisplay = window.getComputedStyle(block).display;
+      console.log(`[AccountManager] Account ${login}: current display = ${currentDisplay}, matches = ${matches}`);
+      
+      if (matches) {
+        // Элемент соответствует поиску - показываем его
+        block.style.setProperty('display', '', 'important');
+        console.log(`[AccountManager] Showing account: ${login}`);
+        visibleCount++;
+        if (status === 'active') {
+          activeVisibleCount++;
+        }
+      } else {
+        // Элемент не соответствует поиску - скрываем его
+        block.style.setProperty('display', 'none', 'important');
+        console.log(`[AccountManager] Hiding account: ${login}`);
+      }
+    });
+    
+    // Обновляем информацию о видимых аккаунтах
+    if (searchQuery === '') {
+      this.updateCurrentAccountInfo(`${activeVisibleCount} active accounts available`);
+    } else {
+      this.updateCurrentAccountInfo(`${activeVisibleCount} active accounts match "${query}"`);
+    }
+    
+    console.log(`[AccountManager] Hidden ${accountBlocks.length - visibleCount} accounts, showed ${visibleCount} accounts (${activeVisibleCount} active)`);
+    
+    // Обновляем состояние кнопок после фильтрации
+    if (window.updateChatButtonsState) {
+      setTimeout(() => {
+        window.updateChatButtonsState();
+      }, 100);
+    }
+  }
+  
+
 }
 
 // Создаем глобальный экземпляр
