@@ -199,12 +199,19 @@ class AccountManager {
       checkbox.parentNode.classList.remove('account-checked');
     });
     
-    // Выбираем нужный аккаунт
+    // Выбираем нужный аккаунт (только если он активен)
     const targetCheckbox = document.getElementById(accountId);
     if (targetCheckbox) {
-      targetCheckbox.checked = true;
-      targetCheckbox.setAttribute('data-account-selected', 'true');
-      targetCheckbox.parentNode.classList.add('account-checked');
+      const accountBlock = targetCheckbox.closest('.account-block');
+      const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
+      
+      if (status === 'active') {
+        targetCheckbox.checked = true;
+        targetCheckbox.setAttribute('data-account-selected', 'true');
+        targetCheckbox.parentNode.classList.add('account-checked');
+      } else {
+        console.log(`[AccountManager] Cannot select inactive account: ${accountId}`);
+      }
     }
     
     // Обновляем состояние кнопок
@@ -215,12 +222,18 @@ class AccountManager {
     }
   }
   
-  // Выбор всех аккаунтов
+  // Выбор всех активных аккаунтов
   selectAllAccounts() {
+    // Выбираем только активные аккаунты
     const activeCheckboxes = document.querySelectorAll('.account__checkbox:not(:disabled)');
+    const activeAccounts = Array.from(activeCheckboxes).filter(checkbox => {
+      const accountBlock = checkbox.closest('.account-block');
+      const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
+      return status === 'active';
+    });
     
-    // Обрабатываем все аккаунты батчами для избежания зависания UI
-    this.processCheckboxesInBatches(Array.from(activeCheckboxes), true, activeCheckboxes.length);
+    // Обрабатываем все активные аккаунты батчами для избежания зависания UI
+    this.processCheckboxesInBatches(activeAccounts, true, activeAccounts.length);
   }
   
   // Обработка чекбоксов батчами для избежания зависания UI

@@ -52,8 +52,15 @@ async function optimizedKickSend() {
         return;
     }
 
+    // Фильтруем только активные выбранные аккаунты
     const selectedAccounts = document.querySelectorAll('[data-account-selected="true"]');
-    console.log(`[optimizedKickSend] Found ${selectedAccounts.length} selected accounts`);
+    const activeSelectedAccounts = Array.from(selectedAccounts).filter(account => {
+        const accountBlock = account.closest('.account-block');
+        const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
+        return status === 'active';
+    });
+    
+    console.log(`[optimizedKickSend] Found ${selectedAccounts.length} selected accounts, ${activeSelectedAccounts.length} are active`);
 
     if (!window.workStatus) {
         showAlert("You haven't started work. Click on the \"Start work\" button", "alert-danger");
@@ -96,10 +103,10 @@ async function optimizedKickSend() {
                 // Не показываем алерт здесь, так как он может дублироваться
             }
         } else {
-            // Обычный режим - отправляем со всех выбранных аккаунтов
+            // Обычный режим - отправляем со всех активных выбранных аккаунтов
             const messageBatch = [];
             
-            selectedAccounts.forEach((accountElement, index) => {
+            activeSelectedAccounts.forEach((accountElement, index) => {
                 const accountLogin = accountElement.value;
                 const messageData = {
                     "channel": data.channel,
@@ -110,7 +117,7 @@ async function optimizedKickSend() {
                     "index": index
                 };
                 
-                console.log(`[optimizedKickSend] Preparing message ${index + 1}/${selectedAccounts.length}: ${accountLogin}`);
+                console.log(`[optimizedKickSend] Preparing message ${index + 1}/${activeSelectedAccounts.length}: ${accountLogin}`);
                 
                 pendingMessages.set(`${messageId}_${index}`, {
                     account: accountLogin,
@@ -269,16 +276,23 @@ function checkSelectedChannel() {
 function checkSelectedAccount() {
     console.log('[checkSelectedAccount] Checking selected account...');
     
+    // Проверяем только активные выбранные аккаунты
     const selectedAccounts = document.querySelectorAll('[data-account-selected="true"]');
-    console.log(`[checkSelectedAccount] Found ${selectedAccounts.length} selected accounts`);
+    const activeSelectedAccounts = Array.from(selectedAccounts).filter(account => {
+        const accountBlock = account.closest('.account-block');
+        const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
+        return status === 'active';
+    });
     
-    if (selectedAccounts.length === 0) {
-        showAlert("You haven't selected an account. Select an account.", "alert-danger");
-        console.log('[checkSelectedAccount] No accounts selected');
+    console.log(`[checkSelectedAccount] Found ${selectedAccounts.length} selected accounts, ${activeSelectedAccounts.length} are active`);
+    
+    if (activeSelectedAccounts.length === 0) {
+        showAlert("You haven't selected any active accounts. Select an active account.", "alert-danger");
+        console.log('[checkSelectedAccount] No active accounts selected');
         return false;
     }
     
-    console.log(`[checkSelectedAccount] ${selectedAccounts.length} account(s) selected`);
+    console.log(`[checkSelectedAccount] ${activeSelectedAccounts.length} active account(s) selected`);
     return true;
 }
 

@@ -40,13 +40,20 @@ $('#inputMessage').on('keydown', function(event) {
 function kickSend() {
   let data = checkingConditions()
   if (data) {
+    // Фильтруем только активные выбранные аккаунты
     const selectedAccounts = document.querySelectorAll('[data-account-selected="true"]');
-    console.log(`[kickSend] Found ${selectedAccounts.length} selected accounts`);
+    const activeSelectedAccounts = Array.from(selectedAccounts).filter(account => {
+      const accountBlock = account.closest('.account-block');
+      const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
+      return status === 'active';
+    });
+    
+    console.log(`[kickSend] Found ${selectedAccounts.length} selected accounts, ${activeSelectedAccounts.length} are active`);
 
     if (window.workStatus) {
       const messageId = Date.now(); // Уникальный ID для этой группы сообщений
       let sentCount = 0;
-      let totalCount = selectedAccounts.length;
+      let totalCount = activeSelectedAccounts.length;
       
       // Проверяем, включено ли автоматическое переключение
       const isAutoSwitchEnabled = window.accountManager && window.accountManager.autoSwitchEnabled;
@@ -91,8 +98,8 @@ function kickSend() {
           showAlert(`📤 Sending from ${accountLogin}...`, "alert-info");
         }
       } else {
-        // Обычный режим - отправляем со всех выбранных аккаунтов
-        selectedAccounts.forEach((accountElement, index) => {
+        // Обычный режим - отправляем со всех активных выбранных аккаунтов
+        activeSelectedAccounts.forEach((accountElement, index) => {
           const accountLogin = accountElement.value;
           const messageData = {
             "channel": data.channel,
@@ -103,7 +110,7 @@ function kickSend() {
             "index": index
           };
           
-          console.log(`[kickSend] Sending message from account ${index + 1}/${selectedAccounts.length}: ${accountLogin}`);
+          console.log(`[kickSend] Sending message from account ${index + 1}/${activeSelectedAccounts.length}: ${accountLogin}`);
           console.log(`${accountLogin}: ${data.message}`);
           
           // Добавляем в отслеживание
@@ -278,16 +285,23 @@ function checkSelectedChannel() {
 function checkSelectedAccount() {
   console.log('[checkSelectedAccount] Checking selected account...');
   
+  // Проверяем только активные выбранные аккаунты
   const selectedAccounts = document.querySelectorAll('[data-account-selected="true"]');
-  console.log(`[checkSelectedAccount] Found ${selectedAccounts.length} selected accounts`);
+  const activeSelectedAccounts = Array.from(selectedAccounts).filter(account => {
+    const accountBlock = account.closest('.account-block');
+    const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
+    return status === 'active';
+  });
   
-  if (selectedAccounts.length === 0) {
-    showAlert("You haven't selected an account. Select an account.", "alert-danger");
-    console.log('[checkSelectedAccount] No accounts selected');
+  console.log(`[checkSelectedAccount] Found ${selectedAccounts.length} selected accounts, ${activeSelectedAccounts.length} are active`);
+  
+  if (activeSelectedAccounts.length === 0) {
+    showAlert("You haven't selected any active accounts. Select an active account.", "alert-danger");
+    console.log('[checkSelectedAccount] No active accounts selected');
     return false;
   }
   
-  console.log(`[checkSelectedAccount] ${selectedAccounts.length} account(s) selected`);
+  console.log(`[checkSelectedAccount] ${activeSelectedAccounts.length} active account(s) selected`);
   return true;
 }
 

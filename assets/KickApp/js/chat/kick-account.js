@@ -23,6 +23,14 @@ function showAccounts(accounts) {
             
             if (checkbox) {
                 checkbox.disabled = acc.status !== 'active';
+                
+                // Если аккаунт стал неактивным, снимаем с него выделение
+                if (acc.status !== 'active') {
+                    checkbox.checked = false;
+                    checkbox.setAttribute("data-account-selected", "false");
+                    existing.classList.remove("account-checked");
+                    console.log(`[showAccounts] Removed selection from inactive account: ${acc.login}`);
+                }
             }
             
             if (badgeStatus) {
@@ -165,6 +173,15 @@ function awaitAccounts() {
 function selectAccount(id) {
     const clickedAccount = document.getElementById(id);
     if (!clickedAccount) return;
+    
+    // Проверяем статус аккаунта перед выбором
+    const accountBlock = clickedAccount.closest('.account-block');
+    const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
+    
+    if (status !== 'active') {
+        console.log(`[selectAccount] Cannot select inactive account: ${id}`);
+        return;
+    }
     
     // Переключаем состояние выбранного аккаунта
     const isCurrentlySelected = clickedAccount.getAttribute("data-account-selected") === "true";

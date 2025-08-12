@@ -131,6 +131,7 @@ function updateWorkButtonsState() {
   const startWorkBtn = document.getElementById("buttonStartWork");
   const endWorkBtn = document.getElementById("buttonEndWork");
   
+  // Проверяем только активные аккаунты (независимо от выбора)
   const activeAccounts = document.querySelectorAll('.account[data-account-status="active"]');
   const hasActiveAccounts = activeAccounts.length > 0;
   const currentWorkStatus = window.workStatus || workStatus;
@@ -151,12 +152,20 @@ function updateChatButtonsState() {
   const autoMessagesBtn = document.querySelector('[data-bs-target="#editAutoMessageModal"]');
   const autoMessageCheckbox = document.getElementById('sendAutoMessageStatus');
   
-  const hasSelectedAccounts = document.querySelectorAll('[data-account-selected="true"]').length > 0;
+  // Проверяем только активные выбранные аккаунты
+  const selectedAccounts = document.querySelectorAll('[data-account-selected="true"]');
+  const activeSelectedAccounts = Array.from(selectedAccounts).filter(account => {
+    const accountBlock = account.closest('.account-block');
+    const status = accountBlock ? accountBlock.getAttribute('data-account-status') : 'active';
+    return status === 'active';
+  });
+  
+  const hasSelectedAccounts = activeSelectedAccounts.length > 0;
   const hasActiveAccounts = document.querySelectorAll('.account[data-account-status="active"]').length > 0;
   const autoSwitchEnabled = window.accountManager && window.accountManager.autoSwitchEnabled;
   
   // В auto switch режиме кнопка активна если есть активные аккаунты
-  // В обычном режиме кнопка активна если есть выбранные аккаунты
+  // В обычном режиме кнопка активна если есть активные выбранные аккаунты
   const canUseButtons = (window.workStatus || workStatus) && (autoSwitchEnabled ? hasActiveAccounts : hasSelectedAccounts);
   
   console.log('[updateChatButtonsState] workStatus:', window.workStatus || workStatus, 'hasSelectedAccounts:', hasSelectedAccounts, 'hasActiveAccounts:', hasActiveAccounts, 'autoSwitchEnabled:', autoSwitchEnabled, 'canUseButtons:', canUseButtons);
