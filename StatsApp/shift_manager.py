@@ -17,6 +17,7 @@ class ShiftManager:
         self.current_shift = None
         self.last_activity = None
         self.current_timeout = None
+        self.current_timeout_log = None  # Добавляем ссылку на текущий таймаут
     
     def start_shift(self) -> Shift:
         """Начать новую смену"""
@@ -39,6 +40,12 @@ class ShiftManager:
         """Завершить текущую смену"""
         if not self.current_shift or not self.current_shift.is_active:
             return False
+        
+        # Завершаем активный таймаут если есть
+        if self.current_timeout and hasattr(self, 'current_timeout_log') and self.current_timeout_log:
+            self.current_timeout_log.end_timeout()
+            self.current_timeout_log = None
+            self.current_timeout = None
         
         # Логируем завершение смены
         self.log_action('shift_end', 'Завершение смены')
@@ -80,18 +87,18 @@ class ShiftManager:
         # Определяем тип действия на основе типа сообщения
         if message_type == 'm':
             action_type = 'manual_send'
-            action_desc = f'Ручная отправка сообщения от {account} в канал {channel}'
+            action_desc = f'{account} - {message}'  # Компактный формат
         elif message_type == 'a':
             action_type = 'auto_send'
-            action_desc = f'Автоотправка сообщения от {account} в канал {channel}'
+            action_desc = f'{account} - {message}'  # Компактный формат
         elif message_type == 'e':
             action_type = 'message_error'
-            action_desc = f'Ошибка отправки от {account} в канал {channel}: {message}'
+            action_desc = f'{account} - {message}'  # Компактный формат
         else:
             action_type = 'manual_send'
-            action_desc = f'Отправка сообщения от {account} в канал {channel}'
+            action_desc = f'{account} - {message}'  # Компактный формат
         
-        # Логируем действие
+        # Логируем действие с минимальными деталями
         self.log_action(action_type, action_desc, {
             'channel': channel,
             'account': account,
@@ -125,6 +132,11 @@ class ShiftManager:
                 self.current_timeout = True
                 self.current_shift.timeouts_count += 1
                 self.current_shift.save()
+                
+                # Создаем запись в TimeoutLog для расчета времени отходов
+                from .models import TimeoutLog
+                self.current_timeout_log = TimeoutLog.objects.create(shift=self.current_shift)
+                
                 self.log_action('timeout_start', f'Начало таймаута после {int(time_since_activity.total_seconds())}с неактивности')
                 logger.warning(f"Timeout started for user {self.user.username} after {time_since_activity.total_seconds()}s of inactivity")
             return True
@@ -132,6 +144,12 @@ class ShiftManager:
             # Если время неактивности меньше порога, но есть активный таймаут - завершаем его
             if self.current_timeout:
                 self.current_timeout = None
+                
+                # Завершаем запись в TimeoutLog
+                if hasattr(self, 'current_timeout_log') and self.current_timeout_log:
+                    self.current_timeout_log.end_timeout()
+                    self.current_timeout_log = None
+                
                 self.log_action('timeout_end', f'Конец таймаута после {int(time_since_activity.total_seconds())}с неактивности')
                 logger.info(f"Timeout ended for user {self.user.username} after {time_since_activity.total_seconds()}s of inactivity")
         

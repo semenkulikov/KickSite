@@ -88,13 +88,18 @@ def shift_log_download(request, shift_id):
     # Единый лог всех действий
     log_content += "=== ПОЛНЫЙ ЛОГ ДЕЙСТВИЙ ===\n"
     for action in statistics['action_log']:
-        details_str = ""
-        if action.get('details'):
-            if isinstance(action['details'], dict):
-                details_str = f" | {action['details']}"
-            else:
-                details_str = f" | {action['details']}"
-        log_content += f"[{action['time']}] {action['type']} | {action['description']}{details_str}\n"
+        # Компактный формат для сообщений
+        if action['type'] in ['Ручная отправка сообщения', 'Автоотправка сообщения', 'Ошибка отправки']:
+            log_content += f"{action['time']} {action['description']}\n"
+        else:
+            # Для остальных действий оставляем полный формат
+            details_str = ""
+            if action.get('details'):
+                if isinstance(action['details'], dict):
+                    details_str = f" | {action['details']}"
+                else:
+                    details_str = f" | {action['details']}"
+            log_content += f"[{action['time']}] {action['type']} | {action['description']}{details_str}\n"
     
     response = HttpResponse(log_content, content_type='text/plain; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="shift_{shift_id}_{statistics["user"]}.txt"'
