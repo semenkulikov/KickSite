@@ -132,6 +132,10 @@ async function optimizedKickSend() {
                 
                 await sendBatchMessages([messageData]);
                 // Не показываем алерт здесь, так как он может дублироваться
+            } else {
+                // Если нет выбранного аккаунта, переключаем еще раз
+                console.log('[optimizedKickSend] No selected account, switching again...');
+                window.accountManager.switchToNextAccount();
             }
         } else {
             // Обычный режим - отправляем со всех активных выбранных аккаунтов

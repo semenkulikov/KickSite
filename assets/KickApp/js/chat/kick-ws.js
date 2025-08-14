@@ -325,6 +325,14 @@ socket.binaryType = 'arraybuffer'; // Используем ArrayBuffer для л
           const account = data.account || "unknown";
           showAlert(`❌ Failed to send from ${account}: ${errorMessage}`, "alert-danger", true, 4000);
           recordChatMessageResponse();
+          
+          // Автоматически переключаем аккаунт после ошибки если включен auto switch
+          if (window.accountManager && window.accountManager.autoSwitchEnabled) {
+            console.log('[KICK_ERROR] Auto switching account after error');
+            setTimeout(() => {
+              window.accountManager.switchToNextAccount();
+            }, 500); // Небольшая задержка для стабилизации
+          }
         }
         break;
       case 'KICK_CRITICAL_ERROR':
